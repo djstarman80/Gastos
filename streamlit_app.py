@@ -42,29 +42,29 @@ def init_db():
     # Crear tablas si no existen (lógica de app.py)
     conn.execute('''CREATE TABLE IF NOT EXISTS gastos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Descripcion TEXT NOT NULL,
-        Monto REAL NOT NULL,
-        Categoria TEXT,
-        Persona TEXT,
-        Tarjeta TEXT,
-        CuotasTotales INTEGER DEFAULT 1,
-        CuotasPagadas INTEGER DEFAULT 1,
-        Fecha TEXT NOT NULL
+        descripcion TEXT NOT NULL,
+        monto REAL NOT NULL,
+        categoria TEXT,
+        persona TEXT,
+        tarjeta TEXT,
+        cuotas_totales INTEGER DEFAULT 1,
+        cuotas_pagadas INTEGER DEFAULT 1,
+        fecha TEXT NOT NULL
     )''')
 
     conn.execute('''CREATE TABLE IF NOT EXISTS gastos_fijos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Descripcion TEXT NOT NULL,
-        Monto REAL NOT NULL,
-        Categoria TEXT,
-        Persona TEXT,
-        CuentaDebito TEXT,
-        FechaInicio TEXT NOT NULL,
-        FechaFin TEXT,
-        Activo INTEGER DEFAULT 1,
-        Variaciones TEXT,
-        Distribucion TEXT,
-        MesesPagados TEXT
+        descripcion TEXT NOT NULL,
+        monto REAL NOT NULL,
+        categoria TEXT,
+        persona TEXT,
+        cuenta_debito TEXT,
+        fecha_inicio TEXT NOT NULL,
+        fecha_fin TEXT,
+        activo INTEGER DEFAULT 1,
+        variaciones TEXT,
+        distribucion TEXT,
+        meses_pagados TEXT
     )''')
 
     conn.commit()
@@ -127,7 +127,7 @@ def show_gastos():
                 if descripcion and monto > 0:
                     conn = get_db_connection()
                     conn.execute(
-                        'INSERT INTO gastos (Descripcion, Monto, Categoria, Persona, Tarjeta, CuotasTotales, CuotasPagadas, Fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO gastos (descripcion, monto, categoria, persona, tarjeta, cuotas_totales, cuotas_pagadas, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                         (descripcion, monto, categoria, persona, tarjeta, cuotas_totales, cuotas_pagadas, fecha.strftime('%Y-%m-%d'))
                     )
                     conn.commit()
@@ -143,13 +143,13 @@ def show_gastos():
             st.rerun()
 
         conn = get_db_connection()
-        gastos = conn.execute('SELECT * FROM gastos ORDER BY Fecha DESC LIMIT 50').fetchall()
+        gastos = conn.execute('SELECT * FROM gastos ORDER BY fecha DESC LIMIT 50').fetchall()
         conn.close()
 
         if gastos:
             df = pd.DataFrame(gastos)
-            df['Fecha'] = pd.to_datetime(df['Fecha']).dt.strftime('%d/%m/%Y')
-            df['Monto'] = df['Monto'].apply(lambda x: f"${x:,.2f}")
+            df['fecha'] = pd.to_datetime(df['fecha']).dt.strftime('%d/%m/%Y')
+            df['monto'] = df['monto'].apply(lambda x: f"${x:,.2f}")
             st.dataframe(df, use_container_width=True)
         else:
             st.info("No hay gastos registrados.")
@@ -176,7 +176,7 @@ def show_gastos_fijos():
                 if gf_descripcion and gf_monto > 0:
                     conn = get_db_connection()
                     conn.execute(
-                        'INSERT INTO gastos_fijos (Descripcion, Monto, Categoria, Persona, CuentaDebito, FechaInicio, FechaFin, Activo, Variaciones, Distribucion, MesesPagados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO gastos_fijos (descripcion, monto, categoria, persona, cuenta_debito, fecha_inicio, fecha_fin, activo, variaciones, distribucion, meses_pagados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         (gf_descripcion, gf_monto, gf_categoria, gf_persona, gf_cuenta, gf_fecha_inicio.strftime('%Y-%m-%d'), gf_fecha_fin.strftime('%Y-%m-%d') if gf_fecha_fin else None, 1 if gf_activo else 0, '{}', '{"Marcelo": 50, "Yenny": 50}', '')
                     )
                     conn.commit()
@@ -189,14 +189,14 @@ def show_gastos_fijos():
     with col2:
         st.subheader("Gastos Fijos")
         conn = get_db_connection()
-        gf = conn.execute('SELECT * FROM gastos_fijos ORDER BY FechaInicio DESC').fetchall()
+        gf = conn.execute('SELECT * FROM gastos_fijos ORDER BY fecha_inicio DESC').fetchall()
         conn.close()
 
         if gf:
             df = pd.DataFrame(gf)
-            df['FechaInicio'] = pd.to_datetime(df['FechaInicio']).dt.strftime('%d/%m/%Y')
-            df['FechaFin'] = pd.to_datetime(df['FechaFin']).dt.strftime('%d/%m/%Y')
-            df['Monto'] = df['Monto'].apply(lambda x: f"${x:,.2f}")
+            df['fecha_inicio'] = pd.to_datetime(df['fecha_inicio']).dt.strftime('%d/%m/%Y')
+            df['fecha_fin'] = pd.to_datetime(df['fecha_fin']).dt.strftime('%d/%m/%Y')
+            df['monto'] = df['monto'].apply(lambda x: f"${x:,.2f}")
             st.dataframe(df, use_container_width=True)
         else:
             st.info("No hay gastos fijos registrados.")
@@ -206,26 +206,26 @@ def show_pagos_futuros():
 
     # Lógica para calcular pagos futuros (simplificada)
     conn = get_db_connection()
-    gf = conn.execute('SELECT * FROM gastos_fijos WHERE Activo = 1').fetchall()
+    gf = conn.execute('SELECT * FROM gastos_fijos WHERE activo = 1').fetchall()
     conn.close()
 
     pagos = []
     hoy = datetime.now()
     for g in gf:
         try:
-            fecha_inicio = datetime.strptime(g['FechaInicio'], '%Y-%m-%d')
+            fecha_inicio = datetime.strptime(g['fecha_inicio'], '%Y-%m-%d')
         except ValueError:
             # Intentar otros formatos comunes si falla
             try:
-                fecha_inicio = datetime.strptime(g['FechaInicio'], '%d/%m/%Y')
+                fecha_inicio = datetime.strptime(g['fecha_inicio'], '%d/%m/%Y')
             except ValueError:
                 continue  # Saltar si no se puede parsear
         if fecha_inicio > hoy:
             pagos.append({
-                'Descripción': g['Descripcion'],
-                'Monto': g['Monto'],
+                'Descripción': g['descripcion'],
+                'Monto': g['monto'],
                 'Fecha': fecha_inicio.strftime('%d/%m/%Y'),
-                'Persona': g['Persona']
+                'Persona': g['persona']
             })
 
     if pagos:
@@ -247,21 +247,21 @@ def show_estadisticas():
 
         # Gráfico por categoría
         st.subheader("Por Categoría")
-        cat_data = df.groupby('Categoria')['Monto'].sum()
+        cat_data = df.groupby('categoria')['monto'].sum()
         fig, ax = plt.subplots()
         cat_data.plot(kind='pie', ax=ax, autopct='%1.1f%%')
         st.pyplot(fig)
 
         # Gráfico por persona
         st.subheader("Por Persona")
-        pers_data = df.groupby('Persona')['Monto'].sum()
+        pers_data = df.groupby('persona')['monto'].sum()
         fig2, ax2 = plt.subplots()
         pers_data.plot(kind='bar', ax=ax2)
         st.pyplot(fig2)
 
         # Estadísticas generales
         st.subheader("Resumen")
-        total = df['Monto'].sum()
+        total = df['monto'].sum()
         st.metric("Total Gastos", f"${total:,.2f}")
         st.metric("Número de Gastos", len(df))
     else:
