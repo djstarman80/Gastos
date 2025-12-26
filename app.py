@@ -891,6 +891,7 @@ def main():
             df_fijos_display = st.session_state.df_fijos.copy()
             df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
             df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
+            df_fijos_display = df_fijos_display.rename(columns={"CuentaDebito": "Cuenta", "FechaInicio": "Inicio", "FechaFin": "Fin"})
             
             st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
         else:
