@@ -826,7 +826,7 @@ def main():
             df_display["Monto"] = df_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
             df_display["Cuotas"] = df_display.apply(lambda row: f"{int(row['CuotasPagadas'])}/{int(row['CuotasTotales'])}", axis=1)
             
-            st.dataframe(df_display[["id", "Fecha", "Descripción", "Categoría", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
+            st.dataframe(df_display[["id", "Fecha", "Descripcion", "Categoria", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
             
             # Acciones
             col1, col2, col3 = st.columns(3)
@@ -892,7 +892,7 @@ def main():
             df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
             df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
             
-            st.dataframe(df_fijos_display[["id", "Descripción", "Monto", "Categoría", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
+            st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
         else:
             st.info("No hay gastos fijos registrados")
     
@@ -934,7 +934,7 @@ def main():
         if not fijos_pendientes.empty:
             st.subheader("💳 Gastos Fijos Pendientes Este Mes")
             for _, fijo in fijos_pendientes.iterrows():
-                st.write(f"• {fijo['Descripción']} - ${float_a_monto_uy(fijo['Monto'])}")
+                st.write(f"• {fijo['Descripcion']} - ${float_a_monto_uy(fijo['Monto'])}")
 
 if __name__ == "__main__":
     main()
