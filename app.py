@@ -924,7 +924,7 @@ def main():
             st.subheader("📋 Gastos con Cuotas Pendientes")
             for _, gasto in gastos_pendientes.iterrows():
                 cuotas_restantes = int(gasto["CuotasTotales"]) - int(gasto["CuotasPagadas"])
-                st.write(f"• {gasto['Descripción']} - {cuotas_restantes} cuota(s) pendiente(s) - ${float_a_monto_uy(gasto['Monto'])}")
+                st.write(f"• {gasto['Descripcion']} - {cuotas_restantes} cuota(s) pendiente(s) - ${float_a_monto_uy(gasto['Monto'])}")
         
         # Gastos fijos activos no pagados este mes
         fijos_pendientes = st.session_state.df_fijos[
