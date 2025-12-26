@@ -212,7 +212,14 @@ def show_pagos_futuros():
     pagos = []
     hoy = datetime.now()
     for g in gf:
-        fecha_inicio = datetime.strptime(g['FechaInicio'], '%Y-%m-%d')
+        try:
+            fecha_inicio = datetime.strptime(g['FechaInicio'], '%Y-%m-%d')
+        except ValueError:
+            # Intentar otros formatos comunes si falla
+            try:
+                fecha_inicio = datetime.strptime(g['FechaInicio'], '%d/%m/%Y')
+            except ValueError:
+                continue  # Saltar si no se puede parsear
         if fecha_inicio > hoy:
             pagos.append({
                 'Descripción': g['Descripcion'],
