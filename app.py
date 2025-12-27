@@ -6,6 +6,7 @@ import json
 import os
 from fpdf import FPDF
 import logging
+import logging.handlers
 from dateutil.relativedelta import relativedelta
 import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -458,9 +459,9 @@ def guardar_gasto(gasto):
     """, (
         gasto["Fecha"].strftime("%d/%m/%Y"), 
         gasto["Monto"], 
-        gasto["Categoría"], 
+        gasto["Categoria"], 
         gasto["Persona"],
-        gasto["Descripción"], 
+        gasto["Descripcion"], 
         gasto["Tarjeta"], 
         gasto["CuotasTotales"], 
         gasto["CuotasPagadas"], 
@@ -613,9 +614,9 @@ def actualizar_gasto(id, gasto):
     """, (
         gasto["Fecha"].strftime("%d/%m/%Y"), 
         gasto["Monto"], 
-        gasto["Categoría"], 
+        gasto["Categoria"], 
         gasto["Persona"],
-        gasto["Descripción"], 
+        gasto["Descripcion"], 
         gasto["Tarjeta"], 
         gasto["CuotasTotales"], 
         gasto["CuotasPagadas"],
@@ -730,87 +731,87 @@ def main():
     
     init_db()
     
-st.title("💰 Finanzas Personales - Marcelo & Yenny")
+    st.title("💰 Finanzas Personales - Marcelo & Yenny")
 
-# Inicializar estado de sesión
-if 'df_gastos' not in st.session_state:
-    st.session_state.df_gastos = cargar_datos()
-if 'df_fijos' not in st.session_state:
-    st.session_state.df_fijos = cargar_gastos_fijos()
+    # Inicializar estado de sesión
+    if 'df_gastos' not in st.session_state:
+        st.session_state.df_gastos = cargar_datos()
+    if 'df_fijos' not in st.session_state:
+        st.session_state.df_fijos = cargar_gastos_fijos()
 
-# Sidebar con acciones
-with st.sidebar:
-    st.header("⚡ Acciones")
-    accion = st.selectbox("Seleccionar acción", ["Seleccionar", "Exportar PDF", "Backup BD", "Restaurar BD"], key="menu_acciones")
-    
-    if accion == "Exportar PDF":
-        if st.button("Generar PDF", key="gen_pdf"):
-            pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
-            pdf_output = pdf.output(dest='S').encode('latin-1')
-            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
-    
-    elif accion == "Backup BD":
-        if st.button("Generar Backup", key="gen_backup"):
-            try:
-                with open("finanzas.db", "rb") as f:
-                    db_data = f.read()
-                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
-            except FileNotFoundError:
-                st.error("Base de datos no encontrada")
-    
-    elif accion == "Restaurar BD":
-        uploaded_file = st.file_uploader("Seleccionar archivo .db", type=["db"], key="upload_db")
-        if uploaded_file is not None:
-            if st.button("Confirmar Restauración", key="restore_btn"):
+    # Sidebar con acciones
+    with st.sidebar:
+        st.header("⚡ Acciones")
+        accion = st.selectbox("Seleccionar acción", ["Seleccionar", "Exportar PDF", "Backup BD", "Restaurar BD"], key="menu_acciones")
+        
+        if accion == "Exportar PDF":
+            if st.button("Generar PDF", key="gen_pdf"):
+                pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
+                pdf_output = pdf.output(dest='S').encode('latin-1')
+                st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
+        
+        elif accion == "Backup BD":
+            if st.button("Generar Backup", key="gen_backup"):
                 try:
-                    with open("finanzas.db", "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+                    with open("finanzas.db", "rb") as f:
+                        db_data = f.read()
+                    st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
+                except FileNotFoundError:
+                    st.error("Base de datos no encontrada")
+        
+        elif accion == "Restaurar BD":
+            uploaded_file = st.file_uploader("Seleccionar archivo .db", type=["db"], key="upload_db")
+            if uploaded_file is not None:
+                if st.button("Confirmar Restauración", key="restore_btn"):
+                    try:
+                        with open("finanzas.db", "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        st.session_state.df_gastos = cargar_datos()
+                        st.session_state.df_fijos = cargar_gastos_fijos()
+                        st.success("Base de datos restaurada")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al restaurar: {e}")
+
+    # Tabs principales
+    tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
+
+    with tab1:
+        st.header("📋 Gestión de Gastos")
+        
+        st.subheader("➕ Agregar/Editar Gasto")
+        with st.form("gasto_form"):
+            fecha = st.date_input("Fecha", datetime.today())
+            monto = st.text_input("Monto", "0,00")
+            categoria = st.selectbox("Categoría", ["Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"])
+            persona = st.selectbox("Persona", ["Marcelo", "Yenny"])
+            descripcion = st.text_input("Descripción")
+            tarjeta = st.selectbox("Tarjeta", ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"])
+            cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
+            cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
+            
+            submitted = st.form_submit_button("Guardar Gasto")
+            
+            if submitted:
+                try:
+                    gasto = {
+                        "Fecha": fecha,
+                        "Monto": monto_uy_a_float(monto),
+                        "Categoria": categoria,
+                        "Persona": persona,
+                        "Descripcion": descripcion,
+                        "Tarjeta": tarjeta,
+                        "CuotasTotales": cuotas_totales,
+                        "CuotasPagadas": cuotas_pagadas
+                    }
+                    guardar_gasto(gasto)
                     st.session_state.df_gastos = cargar_datos()
-                    st.session_state.df_fijos = cargar_gastos_fijos()
-                    st.success("Base de datos restaurada")
+                    st.success("✓ Gasto guardado correctamente")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al restaurar: {e}")
+                    st.error(f"Error: {e}")
 
-# Tabs principales
-tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
-
-with tab1:
-    st.header("📋 Gestión de Gastos")
-    
-    st.subheader("➕ Agregar/Editar Gasto")
-    with st.form("gasto_form"):
-        fecha = st.date_input("Fecha", datetime.today())
-        monto = st.text_input("Monto", "0,00")
-        categoria = st.selectbox("Categoría", ["Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"])
-        persona = st.selectbox("Persona", ["Marcelo", "Yenny"])
-        descripcion = st.text_input("Descripción")
-        tarjeta = st.selectbox("Tarjeta", ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"])
-        cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
-        cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
-        
-        submitted = st.form_submit_button("Guardar Gasto")
-        
-        if submitted:
-            try:
-                gasto = {
-                    "Fecha": fecha,
-                    "Monto": monto_uy_a_float(monto),
-                    "Categoria": categoria,
-                    "Persona": persona,
-                    "Descripcion": descripcion,
-                    "Tarjeta": tarjeta,
-                    "CuotasTotales": cuotas_totales,
-                    "CuotasPagadas": cuotas_pagadas
-                }
-                guardar_gasto(gasto)
-                st.session_state.df_gastos = cargar_datos()
-                st.success("✓ Gasto guardado correctamente")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-    st.subheader("🔍 Filtros")
+        st.subheader("🔍 Filtros")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -873,45 +874,45 @@ with tab1:
                     st.download_button("Descargar PDF", pdf_output, "reporte_gastos.pdf", "application/pdf")
         else:
             st.info("No hay gastos que coincidan con los filtros aplicados")
-    
-with tab2:
-    st.header("💳 Gestión de Gastos Fijos")
-    
-    st.subheader("➕ Agregar/Editar Gasto Fijo")
-    with st.form("fijo_form"):
-        descripcion = st.text_input("Descripción")
-        monto = st.text_input("Monto mensual", "0,00")
-        categoria = st.selectbox("Categoría", ["Servicios", "Cargo fijo", "Suscripciones", "Educación", "Salud", "Transporte", "Otros"])
-        persona = st.selectbox("Persona", ["Marcelo", "Yenny", "Ambos"])
-        cuenta_debito = st.selectbox("Cuenta débito", ["BROU", "Santander", "OCA", "Otra"])
-        fecha_inicio = st.date_input("Fecha inicio", datetime.today())
-        fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
-        activo = st.checkbox("Activo", value=True)
+
+    with tab2:
+        st.header("💳 Gestión de Gastos Fijos")
         
-        submitted = st.form_submit_button("Guardar Gasto Fijo")
+        st.subheader("➕ Agregar/Editar Gasto Fijo")
+        with st.form("fijo_form"):
+            descripcion = st.text_input("Descripción")
+            monto = st.text_input("Monto mensual", "0,00")
+            categoria = st.selectbox("Categoría", ["Servicios", "Cargo fijo", "Suscripciones", "Educación", "Salud", "Transporte", "Otros"])
+            persona = st.selectbox("Persona", ["Marcelo", "Yenny", "Ambos"])
+            cuenta_debito = st.selectbox("Cuenta débito", ["BROU", "Santander", "OCA", "Otra"])
+            fecha_inicio = st.date_input("Fecha inicio", datetime.today())
+            fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
+            activo = st.checkbox("Activo", value=True)
+            
+            submitted = st.form_submit_button("Guardar Gasto Fijo")
+            
+            if submitted:
+                try:
+                    gasto_fijo = {
+                        "Descripcion": descripcion,
+                        "Monto": monto_uy_a_float(monto),
+                        "Categoria": categoria,
+                        "Persona": persona,
+                        "CuentaDebito": cuenta_debito,
+                        "FechaInicio": fecha_inicio.strftime("%d/%m/%Y"),
+                        "FechaFin": fecha_fin.strftime("%d/%m/%Y") if fecha_fin else "",
+                        "Activo": activo,
+                        "Variaciones": {},
+                        "Distribucion": {"Marcelo": 50, "Yenny": 50}
+                    }
+                    guardar_gasto_fijo(gasto_fijo)
+                    st.session_state.df_fijos = cargar_gastos_fijos()
+                    st.success("✓ Gasto fijo guardado correctamente")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
         
-        if submitted:
-            try:
-                gasto_fijo = {
-                    "Descripcion": descripcion,
-                    "Monto": monto_uy_a_float(monto),
-                    "Categoria": categoria,
-                    "Persona": persona,
-                    "CuentaDebito": cuenta_debito,
-                    "FechaInicio": fecha_inicio.strftime("%d/%m/%Y"),
-                    "FechaFin": fecha_fin.strftime("%d/%m/%Y") if fecha_fin else "",
-                    "Activo": activo,
-                    "Variaciones": {},
-                    "Distribucion": {"Marcelo": 50, "Yenny": 50}
-                }
-                guardar_gasto_fijo(gasto_fijo)
-                st.session_state.df_fijos = cargar_gastos_fijos()
-                st.success("✓ Gasto fijo guardado correctamente")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error: {e}")
-    
-    # Mostrar tabla
+        # Mostrar tabla
         st.subheader("💳 Lista de Gastos Fijos")
         
         if not st.session_state.df_fijos.empty:
@@ -923,7 +924,7 @@ with tab2:
             st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
         else:
             st.info("No hay gastos fijos registrados")
-    
+
     with tab3:
         st.header("⏰ Pagos Futuros")
         
