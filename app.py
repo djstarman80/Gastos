@@ -946,7 +946,54 @@ def main():
         
         # Obtener meses con pagos
         meses_pagos = {}
-        
+
+        # Procesar gastos normales con cuotas pendientes
+        for _, gasto in st.session_state.df_gastos.iterrows():
+            cuotas_totales = int(gasto["CuotasTotales"] or 1)
+            cuotas_pagadas = int(gasto["CuotasPagadas"] or 0)
+            if cuotas_pagadas >= cuotas_totales:
+                continue
+
+            fecha_gasto = pd.to_datetime(gasto["Fecha"], dayfirst=True, errors="coerce")
+            if pd.isna(fecha_gasto):
+                continue
+
+            dia_gasto = fecha_gasto.day
+            if dia_gasto >= 5:
+                primer_mes_pago = fecha_gasto.replace(day=1) + pd.DateOffset(months=1)
+            else:
+                primer_mes_pago = fecha_gasto.replace(day=1)
+
+            for i in range(cuotas_pagadas, cuotas_totales):
+                mes_pago = primer_mes_pago + pd.DateOffset(months=i)
+                if mes_pago < mes_actual:
+                    continue
+                mes_clave = mes_pago.strftime("%Y-%m")
+
+                if mes_clave not in meses_pagos:
+                    meses_pagos[mes_clave] = {
+                        "mes_nombre": MESES_NUMERO[mes_pago.month],
+                        "año": mes_pago.year,
+                        "tarjetas": {"BROU": 0, "Santander": 0, "OCA": 0, "Otra": 0, "Efectivo": 0, "Transferencia": 0},
+                        "personas": {"Marcelo": 0, "Yenny": 0},
+                        "total": 0
+                    }
+
+                # Asignar a tarjeta
+                tarjeta = gasto["Tarjeta"]
+                if tarjeta in meses_pagos[mes_clave]["tarjetas"]:
+                    meses_pagos[mes_clave]["tarjetas"][tarjeta] += gasto["Monto"]
+
+                # Asignar a persona
+                persona = gasto["Persona"]
+                if persona in ["Marcelo", "Yenny"]:
+                    meses_pagos[mes_clave]["personas"][persona] += gasto["Monto"]
+                elif persona == "Ambos":
+                    meses_pagos[mes_clave]["personas"]["Marcelo"] += gasto["Monto"] / 2
+                    meses_pagos[mes_clave]["personas"]["Yenny"] += gasto["Monto"] / 2
+
+                meses_pagos[mes_clave]["total"] += gasto["Monto"]
+
         # Procesar gastos fijos
         for _, fijo in st.session_state.df_fijos.iterrows():
             if not fijo["Activo"]:
