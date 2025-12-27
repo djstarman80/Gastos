@@ -105,19 +105,17 @@ def main():
                     ejecutar_query("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)", (d, m, p, medio, 1, f))
                 st.rerun()
 
-    # --- 2. CUENTAS CON RESUMEN TOTAL ---
+    # --- 2. CUENTAS CON RESUMEN ---
     with t2:
-        # --- CÁLCULOS DE RESUMEN ---
         total_marcelo = df_f[df_f['Persona'] == "Marcelo"]['Monto'].sum() + df_g[df_g['Persona'] == "Marcelo"]['Monto'].sum()
         total_yenny = df_f[df_f['Persona'] == "Yenny"]['Monto'].sum() + df_g[df_g['Persona'] == "Yenny"]['Monto'].sum()
         total_general = total_marcelo + total_yenny
 
-        st.subheader("Resumen General")
+        st.subheader("Resumen de Gastos Actuales")
         c1, c2, c3 = st.columns(3)
         c1.metric("TOTAL GENERAL", f"$ {float_a_uy(total_general)}")
-        c2.metric("Marcelo", f"$ {float_a_uy(total_marcelo)}", delta_color="off")
-        c3.metric("Yenny", f"$ {float_a_uy(total_yenny)}", delta_color="off")
-        
+        c2.metric("Marcelo", f"$ {float_a_uy(total_marcelo)}")
+        c3.metric("Yenny", f"$ {float_a_uy(total_yenny)}")
         st.divider()
 
         if st.session_state.editando:
@@ -132,13 +130,12 @@ def main():
                     st.session_state.editando = None
                     st.rerun()
 
-        st.subheader("Detalle por Medio de Pago")
         for m in ["DÉBITO", "SANTANDER", "BROU", "OCA"]:
             sf = df_f[df_f['Cuenta'] == m] if 'Cuenta' in df_f.columns else pd.DataFrame()
             sg = df_g[df_g['Tarjeta'] == m] if 'Tarjeta' in df_g.columns else pd.DataFrame()
             if not sf.empty or not sg.empty:
                 m_total = sf['Monto'].sum() + sg['Monto'].sum()
-                with st.expander(f"🏦 {m} - Total Medio: ${float_a_uy(m_total)}"):
+                with st.expander(f"🏦 {m} - Subtotal: ${float_a_uy(m_total)}"):
                     for _, r in sf.iterrows():
                         col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
                         col1.write(f"🏠 {r['Descripcion']} ({r['Persona']}): ${float_a_uy(r['Monto'])}")
@@ -156,21 +153,25 @@ def main():
                         if col3.button("🗑️", key=f"dg_{r['id']}"):
                             ejecutar_query("DELETE FROM gastos WHERE id=?", (r['id'],)); st.rerun()
 
-    # --- 3. PROYECCIÓN ---
+    # --- 3. PROYECCIÓN (AHORA 12 MESES) ---
     with t3:
-        st.subheader("Proyección a 6 Meses")
+        st.subheader("Proyección Anual (12 Meses)")
         inicio = datetime.today().replace(day=1)
-        for i in range(6):
+        for i in range(12):
             mes = inicio + pd.DateOffset(months=i)
             sm, sy = 0.0, 0.0
             for _, r in df_f.iterrows():
                 if r['Persona'] == "Marcelo": sm += r['Monto']
                 else: sy += r['Monto']
             for _, r in df_g.iterrows():
+                # Se suma si el mes proyectado está dentro de las cuotas pendientes
                 if i < (r.get('CuotasTotales', 1) - r.get('CuotasPagadas', 0)):
                     if r['Persona'] == "Marcelo": sm += r['Monto']
                     else: sy += r['Monto']
-            st.info(f"📅 {MESES_NOMBRE[mes.month]} {mes.year} | Marcelo: ${float_a_uy(sm)} | Yenny: ${float_a_uy(sy)} | Total: ${float_a_uy(sm+sy)}")
+            
+            # Estilo diferente para meses pares/impares para mejor lectura
+            color = "🟢" if i % 2 == 0 else "🔵"
+            st.info(f"{color} {MESES_NOMBRE[mes.month]} {mes.year} | Marcelo: ${float_a_uy(sm)} | Yenny: ${float_a_uy(sy)} | Total Mes: ${float_a_uy(sm+sy)}")
 
     # --- 4. EXPORTAR ---
     with t4:
@@ -181,7 +182,7 @@ def main():
 
         col_a, col_b, col_c = st.columns(3)
         with open("finanzas.db", "rb") as f:
-            col_a.download_button("💾 Descargar SQL (.db)", f, f"finanzas_backup_{datetime.now().strftime('%Y%m%d')}.db", mime="application/x-sqlite3", use_container_width=True)
+            col_a.download_button("💾 Descargar SQL (.db)", f, f"backup_{datetime.now().strftime('%Y%m%d')}.db", mime="application/x-sqlite3", use_container_width=True)
         col_b.download_button("📊 Descargar CSV (Excel)", master.to_csv(index=False).encode('utf-8'), "finanzas_m_y.csv", mime="text/csv", use_container_width=True)
         if not master.empty:
             col_c.download_button("📄 Descargar Reporte PDF", generar_pdf_pro(master, "Resumen Finanzas M&Y"), "reporte_finanzas.pdf", mime="application/pdf", use_container_width=True)
