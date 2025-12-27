@@ -782,22 +782,22 @@ def main():
         # Acciones adicionales
         st.header("⚡ Acciones")
         
-        if st.button("📄 Exportar PDF"):
+        if st.button("📄 Exportar PDF", key="export_pdf_btn"):
             pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
             pdf_output = pdf.output(dest='S').encode('latin-1')
-            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf")
+            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
         
-        if st.button("💾 Backup BD"):
+        if st.button("💾 Backup BD", key="backup_btn"):
             try:
                 with open("finanzas.db", "rb") as f:
                     db_data = f.read()
-                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream")
+                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
             except FileNotFoundError:
                 st.error("Base de datos no encontrada")
         
-        uploaded_file = st.file_uploader("📁 Restaurar BD", type=["db"])
+        uploaded_file = st.file_uploader("📁 Restaurar BD", type=["db"], key="upload_db")
         if uploaded_file is not None:
-            if st.button("Confirmar Restauración"):
+            if st.button("Confirmar Restauración", key="restore_btn"):
                 try:
                     with open("finanzas.db", "wb") as f:
                         f.write(uploaded_file.getbuffer())
