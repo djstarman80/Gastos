@@ -730,16 +730,50 @@ def main():
     
     init_db()
     
-    st.title("💰 Finanzas Personales - Marcelo & Yenny")
+st.title("💰 Finanzas Personales - Marcelo & Yenny")
+
+# Inicializar estado de sesión
+if 'df_gastos' not in st.session_state:
+    st.session_state.df_gastos = cargar_datos()
+if 'df_fijos' not in st.session_state:
+    st.session_state.df_fijos = cargar_gastos_fijos()
+
+# Sidebar con acciones
+with st.sidebar:
+    st.header("⚡ Acciones")
+    accion = st.selectbox("Seleccionar acción", ["Seleccionar", "Exportar PDF", "Backup BD", "Restaurar BD"], key="menu_acciones")
     
-    # Inicializar estado de sesión
-    if 'df_gastos' not in st.session_state:
-        st.session_state.df_gastos = cargar_datos()
-    if 'df_fijos' not in st.session_state:
-        st.session_state.df_fijos = cargar_gastos_fijos()
+    if accion == "Exportar PDF":
+        if st.button("Generar PDF", key="gen_pdf"):
+            pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
     
-    # Tabs principales
-    tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
+    elif accion == "Backup BD":
+        if st.button("Generar Backup", key="gen_backup"):
+            try:
+                with open("finanzas.db", "rb") as f:
+                    db_data = f.read()
+                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
+            except FileNotFoundError:
+                st.error("Base de datos no encontrada")
+    
+    elif accion == "Restaurar BD":
+        uploaded_file = st.file_uploader("Seleccionar archivo .db", type=["db"], key="upload_db")
+        if uploaded_file is not None:
+            if st.button("Confirmar Restauración", key="restore_btn"):
+                try:
+                    with open("finanzas.db", "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.session_state.df_gastos = cargar_datos()
+                    st.session_state.df_fijos = cargar_gastos_fijos()
+                    st.success("Base de datos restaurada")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al restaurar: {e}")
+
+# Tabs principales
+tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
     
     with tab1:
         st.header("📋 Gestión de Gastos")
