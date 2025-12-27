@@ -765,9 +765,9 @@ def main():
                         gasto = {
                             "Fecha": fecha,
                             "Monto": monto_uy_a_float(monto),
-                            "Categoría": categoria,
+                            "Categoria": categoria,
                             "Persona": persona,
-                            "Descripción": descripcion,
+                            "Descripcion": descripcion,
                             "Tarjeta": tarjeta,
                             "CuotasTotales": cuotas_totales,
                             "CuotasPagadas": cuotas_pagadas
@@ -778,6 +778,35 @@ def main():
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
+        
+        # Acciones adicionales
+        st.header("⚡ Acciones")
+        
+        if st.button("📄 Exportar PDF"):
+            pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf")
+        
+        if st.button("💾 Backup BD"):
+            try:
+                with open("finanzas.db", "rb") as f:
+                    db_data = f.read()
+                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream")
+            except FileNotFoundError:
+                st.error("Base de datos no encontrada")
+        
+        uploaded_file = st.file_uploader("📁 Restaurar BD", type=["db"])
+        if uploaded_file is not None:
+            if st.button("Confirmar Restauración"):
+                try:
+                    with open("finanzas.db", "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.session_state.df_gastos = cargar_datos()
+                    st.session_state.df_fijos = cargar_gastos_fijos()
+                    st.success("Base de datos restaurada")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al restaurar: {e}")
         
         # Filtros
         st.subheader("🔍 Filtros")
