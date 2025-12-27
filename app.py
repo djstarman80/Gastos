@@ -774,8 +774,8 @@ with st.sidebar:
 
 # Tabs principales
 tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
-    
-    with tab1:
+
+with tab1:
         st.header("📋 Gestión de Gastos")
         
         # Sidebar para formulario
