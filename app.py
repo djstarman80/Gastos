@@ -900,9 +900,6 @@ def main():
     with tab3:
         st.header("⏰ Pagos Futuros")
         
-        # Vista de pagos futuros
-        st.subheader("📅 Próximos Pagos")
-        
         # Marcar pagos del mes actual
         if st.button("✅ Marcar pagos del mes actual"):
             marcar_pagos_mes_actual()
@@ -911,31 +908,73 @@ def main():
             st.success("✓ Pagos del mes marcados")
             st.rerun()
         
-        # Lógica para mostrar pagos futuros (simplificada)
-        hoy = datetime.today()
-        mes_actual = hoy.strftime("%Y-%m")
+        st.subheader("📅 Visión Mensual de Pagos Futuros")
         
-        # Gastos con cuotas pendientes
+        # Generar vista similar al original
+        hoy = datetime.today()
+        meses_a_mostrar = 24
+        
+        # Crear lista de meses
+        meses = []
+        for i in range(meses_a_mostrar):
+            mes_fecha = hoy + relativedelta(months=i)
+            meses.append(mes_fecha)
+        
+        # Organizar en filas de 4 meses
+        filas_meses = [meses[i:i+4] for i in range(0, len(meses), 4)]
+        
+        for fila in filas_meses:
+            cols = st.columns(4)
+            for idx, mes_fecha in enumerate(fila):
+                with cols[idx]:
+                    mes_clave = mes_fecha.strftime("%Y-%m")
+                    mes_nombre = MESES_ABREVIATURA[mes_fecha.month]
+                    año_corto = str(mes_fecha.year)[2:]
+                    
+                    st.markdown(f"**{mes_nombre} '{año_corto}**")
+                    
+                    # Gastos fijos para este mes
+                    pagos_mes = []
+                    
+                    for _, fijo in st.session_state.df_fijos.iterrows():
+                        if not fijo["Activo"]:
+                            continue
+                        
+                        # Verificar si ya pagado
+                        meses_pagados = str(fijo.get("MesesPagados", ""))
+                        if mes_clave in meses_pagados:
+                            continue
+                        
+                        # Obtener monto para este mes (considerando variaciones)
+                        monto_mes = fijo["Monto"]
+                        if fijo["Variaciones"] and isinstance(fijo["Variaciones"], dict):
+                            if mes_clave in fijo["Variaciones"]:
+                                monto_mes = fijo["Variaciones"][mes_clave]
+                        
+                        pagos_mes.append({
+                            "descripcion": fijo["Descripcion"],
+                            "monto": monto_mes,
+                            "categoria": fijo["Categoria"]
+                        })
+                    
+                    if pagos_mes:
+                        for pago in pagos_mes:
+                            st.write(f"• {pago['descripcion']}: ${float_a_monto_uy(pago['monto'])}")
+                    else:
+                        st.write("Sin pagos")
+        
+        # Gastos con cuotas pendientes (adicional)
+        st.subheader("📋 Gastos con Cuotas Pendientes")
         gastos_pendientes = st.session_state.df_gastos[
             st.session_state.df_gastos["CuotasPagadas"] < st.session_state.df_gastos["CuotasTotales"]
         ]
         
         if not gastos_pendientes.empty:
-            st.subheader("📋 Gastos con Cuotas Pendientes")
             for _, gasto in gastos_pendientes.iterrows():
                 cuotas_restantes = int(gasto["CuotasTotales"]) - int(gasto["CuotasPagadas"])
                 st.write(f"• {gasto['Descripcion']} - {cuotas_restantes} cuota(s) pendiente(s) - ${float_a_monto_uy(gasto['Monto'])}")
-        
-        # Gastos fijos activos no pagados este mes
-        fijos_pendientes = st.session_state.df_fijos[
-            (st.session_state.df_fijos["Activo"] == True) &
-            (~st.session_state.df_fijos["MesesPagados"].str.contains(mes_actual, na=False))
-        ]
-        
-        if not fijos_pendientes.empty:
-            st.subheader("💳 Gastos Fijos Pendientes Este Mes")
-            for _, fijo in fijos_pendientes.iterrows():
-                st.write(f"• {fijo['Descripcion']} - ${float_a_monto_uy(fijo['Monto'])}")
+        else:
+            st.info("No hay gastos con cuotas pendientes")
 
 if __name__ == "__main__":
     main()
