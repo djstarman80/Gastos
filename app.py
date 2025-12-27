@@ -986,11 +986,11 @@ def main():
 
                 # Asignar a persona
                 persona = gasto["Persona"]
-                if persona in ["Marcelo", "Yenny"]:
-                    meses_pagos[mes_clave]["personas"][persona] += gasto["Monto"]
-                elif persona == "Ambos":
+                if persona == "Marcelo":
                     meses_pagos[mes_clave]["personas"]["Marcelo"] += gasto["Monto"]
+                elif persona == "Yenny":
                     meses_pagos[mes_clave]["personas"]["Yenny"] += gasto["Monto"]
+                # No hay "Ambos" en gastos normales
 
                 meses_pagos[mes_clave]["total"] += gasto["Monto"]
 
@@ -1041,9 +1041,9 @@ def main():
                 # Asignar a persona
                 persona = fijo["Persona"]
                 if persona == "Ambos":
-                    distrib = fijo.get("Distribucion", {"Marcelo": 50, "Yenny": 50})
-                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes * (distrib.get("Marcelo", 50) / 100)
-                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes * (distrib.get("Yenny", 50) / 100)
+                    # No distribuir, asignar completo a ambos
+                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes
+                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes
                 elif persona in meses_pagos[mes_clave]["personas"]:
                     meses_pagos[mes_clave]["personas"][persona] += monto_mes
                 
