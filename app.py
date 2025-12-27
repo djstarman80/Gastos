@@ -775,9 +775,10 @@ with st.sidebar:
 # Tabs principales
 tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
 
-with st.sidebar:
-    st.header("➕ Agregar/Editar Gasto")
+with tab1:
+    st.header("📋 Gestión de Gastos")
     
+    st.subheader("➕ Agregar/Editar Gasto")
     with st.form("gasto_form"):
         fecha = st.date_input("Fecha", datetime.today())
         monto = st.text_input("Monto", "0,00")
@@ -808,12 +809,9 @@ with st.sidebar:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
-
-with tab1:
-    st.header("📋 Gestión de Gastos")
     
     # Filtros
-        st.subheader("🔍 Filtros")
+    st.subheader("🔍 Filtros")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -877,9 +875,10 @@ with tab1:
         else:
             st.info("No hay gastos que coincidan con los filtros aplicados")
     
-with st.sidebar:
-    st.header("➕ Agregar/Editar Gasto Fijo")
+with tab2:
+    st.header("💳 Gestión de Gastos Fijos")
     
+    st.subheader("➕ Agregar/Editar Gasto Fijo")
     with st.form("fijo_form"):
         descripcion = st.text_input("Descripción")
         monto = st.text_input("Monto mensual", "0,00")
@@ -912,9 +911,6 @@ with st.sidebar:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
-
-with tab2:
-    st.header("💳 Gestión de Gastos Fijos")
     
     # Mostrar tabla
         st.subheader("💳 Lista de Gastos Fijos")
