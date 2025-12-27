@@ -28,8 +28,23 @@ def float_a_monto_uy(v):
 def init_db():
     conn = sqlite3.connect("finanzas.db")
     c = conn.cursor()
+    # Crear tablas si no existen
     c.execute("CREATE TABLE IF NOT EXISTS gastos (id INTEGER PRIMARY KEY AUTOINCREMENT, Fecha TEXT, Monto REAL, Persona TEXT, Descripcion TEXT, Tarjeta TEXT, CuotasTotales INTEGER, CuotasPagadas INTEGER, MesesPagados TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS gastos_fijos (id INTEGER PRIMARY KEY AUTOINCREMENT, Descripcion TEXT, Monto REAL, Persona TEXT, Cuenta TEXT, Activo BOOLEAN, MesesPagados TEXT)")
+    
+    # --- PARCHE DE SEGURIDAD PARA COLUMNAS FALTANTES ---
+    # Comprobar 'Tarjeta' en gastos
+    c.execute("PRAGMA table_info(gastos)")
+    columnas_g = [col[1] for col in c.fetchall()]
+    if 'Tarjeta' not in columnas_g:
+        c.execute("ALTER TABLE gastos ADD COLUMN Tarjeta TEXT DEFAULT 'BROU'")
+    
+    # Comprobar 'Cuenta' en gastos_fijos
+    c.execute("PRAGMA table_info(gastos_fijos)")
+    columnas_f = [col[1] for col in c.fetchall()]
+    if 'Cuenta' not in columnas_f:
+        c.execute("ALTER TABLE gastos_fijos ADD COLUMN Cuenta TEXT DEFAULT 'DÉBITO'")
+    
     conn.commit()
     conn.close()
 
@@ -43,7 +58,6 @@ def main():
     st.sidebar.title("⚙️ Ajustes")
     dia_cierre = st.sidebar.slider("Día de Cierre", 1, 28, 10)
 
-    # BANNER DESHACER (Visible en todas las pestañas si hay un borrado reciente)
     if st.session_state.ultimo_borrado:
         with st.container():
             col_inf, col_undo = st.columns([3, 1])
@@ -51,15 +65,15 @@ def main():
             if col_undo.button("↩️ DESHACER"):
                 b = st.session_state.ultimo_borrado
                 if b['tabla'] == 'gastos':
-                    ejecutar_query("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, Tarjeta, CuotasTotales, CuotasPagadas, MesesPagados) VALUES (?,?,?,?,?,?,?,?)", b['datos'][1:])
+                    ejecutar_query("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, Tarjeta, CuotasTotales, CuotasPagadas, MesesPagados) VALUES (?,?,?,?,?,?,?,?)", tuple(b['datos'][1:]))
                 else:
-                    ejecutar_query("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)", b['datos'][1:])
+                    ejecutar_query("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)", tuple(b['datos'][1:]))
                 st.session_state.ultimo_borrado = None
                 st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["➕ Ingreso", "📋 Por Tarjeta", "📊 Proyección", "💾 Backup"])
 
-    # --- TAB 1: INGRESO UNIFICADO ---
+    # --- TAB 1: INGRESO ---
     with tab1:
         with st.form("f_uni", clear_on_submit=True):
             tipo = st.radio("Tipo de Gasto", ["Gasto en Cuotas", "Gasto Fijo"], horizontal=True)
@@ -89,24 +103,28 @@ def main():
         conn.close()
         for m in ["DÉBITO", "BROU", "OCA", "SANTANDER"]:
             with st.expander(f"🏦 {m}"):
-                for _, r in df_g[df_g['Tarjeta']==m].iterrows():
+                # Cuotas
+                sub_g = df_g[df_g['Tarjeta']==m]
+                for _, r in sub_g.iterrows():
                     c_t, c_b = st.columns([4, 1])
                     c_t.write(f"💳 {r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])} [{r['CuotasPagadas']}/{r['CuotasTotales']}]")
                     if c_b.button("🗑️", key=f"dg{r['id']}"):
                         st.session_state.ultimo_borrado = {'tabla':'gastos', 'datos':r.values, 'nombre':r['Descripcion']}
                         ejecutar_query("DELETE FROM gastos WHERE id=?", (r['id'],)); st.rerun()
-                for _, r in df_f[df_f['Cuenta']==m].iterrows():
+                # Fijos
+                sub_f = df_f[df_f['Cuenta']==m]
+                for _, r in sub_f.iterrows():
                     c_t, c_b = st.columns([4, 1])
                     c_t.write(f"🏠 {r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])} {'✅' if r['Activo'] else '❌'}")
                     if c_b.button("🗑️", key=f"df{r['id']}"):
                         st.session_state.ultimo_borrado = {'tabla':'gastos_fijos', 'datos':r.values, 'nombre':r['Descripcion']}
                         ejecutar_query("DELETE FROM gastos_fijos WHERE id=?", (r['id'],)); st.rerun()
 
-    # --- TAB 3: PROYECCIÓN (DISEÑO MÓVIL) ---
+    # --- TAB 3: PROYECCIÓN ---
     with tab3:
         hoy = datetime.today()
         inicio_p = hoy.replace(day=1) + pd.DateOffset(months=1) if hoy.day >= dia_cierre else hoy.replace(day=1)
-        for i in range(6): # Mostramos los próximos 6 meses como tarjetas
+        for i in range(6):
             mes_f = inicio_p + pd.DateOffset(months=i)
             sm, sy = 0.0, 0.0
             for _, f in df_f[df_f['Activo']==1].iterrows():
@@ -116,8 +134,6 @@ def main():
                 if i < (g['CuotasTotales'] - g['CuotasPagadas']):
                     if g['Persona'] == "Marcelo": sm += g['Monto']
                     else: sy += g['Monto']
-            
-            # Diseño de Tarjeta
             with st.container(border=True):
                 st.markdown(f"### 📅 {MESES_NOMBRE[mes_f.month]} {mes_f.year}")
                 c_m, c_y = st.columns(2)
