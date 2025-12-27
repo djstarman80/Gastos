@@ -774,160 +774,165 @@ def main():
                         st.error(f"Error al restaurar: {e}")
 
     # Tabs principales
-    tab1, tab2, tab3 = st.tabs(["📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
+    tab0, tab1, tab2, tab3 = st.tabs(["🆕 Agregar Datos", "📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
+
+    with tab0:
+        st.header("🆕 Agregar Datos")
+        
+        tipo = st.radio("Tipo de ingreso", ["Gasto", "Gasto Fijo"])
+        
+        if tipo == "Gasto":
+            with st.form("gasto_form"):
+                fecha = st.date_input("Fecha", datetime.today())
+                monto = st.text_input("Monto", "0,00")
+                categoria = st.selectbox("Categoría", ["Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"])
+                persona = st.selectbox("Persona", ["Marcelo", "Yenny"])
+                descripcion = st.text_input("Descripción")
+                tarjeta = st.selectbox("Tarjeta", ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"])
+                cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
+                cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
+                
+                submitted = st.form_submit_button("Guardar Gasto")
+                
+                if submitted:
+                    try:
+                        gasto = {
+                            "Fecha": fecha,
+                            "Monto": monto_uy_a_float(monto),
+                            "Categoria": categoria,
+                            "Persona": persona,
+                            "Descripcion": descripcion,
+                            "Tarjeta": tarjeta,
+                            "CuotasTotales": cuotas_totales,
+                            "CuotasPagadas": cuotas_pagadas
+                        }
+                        guardar_gasto(gasto)
+                        st.session_state.df_gastos = cargar_datos()
+                        st.success("✓ Gasto guardado correctamente")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+        
+        if tipo == "Gasto Fijo":
+            with st.form("fijo_form"):
+                descripcion = st.text_input("Descripción")
+                monto = st.text_input("Monto mensual", "0,00")
+                categoria = st.selectbox("Categoría", ["Servicios", "Cargo fijo", "Suscripciones", "Educación", "Salud", "Transporte", "Otros"])
+                persona = st.selectbox("Persona", ["Marcelo", "Yenny", "Ambos"])
+                cuenta_debito = st.selectbox("Cuenta débito", ["BROU", "Santander", "OCA", "Otra"])
+                fecha_inicio = st.date_input("Fecha inicio", datetime.today())
+                fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
+                activo = st.checkbox("Activo", value=True)
+
+                submitted = st.form_submit_button("Guardar Gasto Fijo")
+
+                if submitted:
+                    try:
+                        gasto_fijo = {
+                            "Descripcion": descripcion,
+                            "Monto": monto_uy_a_float(monto),
+                            "Categoria": categoria,
+                            "Persona": persona,
+                            "CuentaDebito": cuenta_debito,
+                            "FechaInicio": fecha_inicio.strftime("%d/%m/%Y"),
+                            "FechaFin": fecha_fin.strftime("%d/%m/%Y") if fecha_fin else "",
+                            "Activo": activo,
+                            "Variaciones": {},
+                            "Distribucion": {"Marcelo": 50, "Yenny": 50}
+                        }
+                        guardar_gasto_fijo(gasto_fijo)
+                        st.session_state.df_fijos = cargar_gastos_fijos()
+                        st.success("✓ Gasto fijo guardado correctamente")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
     with tab1:
         st.header("📋 Gestión de Gastos")
         
-        st.subheader("➕ Agregar/Editar Gasto")
-        with st.form("gasto_form"):
-            fecha = st.date_input("Fecha", datetime.today())
-            monto = st.text_input("Monto", "0,00")
-            categoria = st.selectbox("Categoría", ["Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"])
-            persona = st.selectbox("Persona", ["Marcelo", "Yenny"])
-            descripcion = st.text_input("Descripción")
-            tarjeta = st.selectbox("Tarjeta", ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"])
-            cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
-            cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
-            
-            submitted = st.form_submit_button("Guardar Gasto")
-            
-            if submitted:
-                try:
-                    gasto = {
-                        "Fecha": fecha,
-                        "Monto": monto_uy_a_float(monto),
-                        "Categoria": categoria,
-                        "Persona": persona,
-                        "Descripcion": descripcion,
-                        "Tarjeta": tarjeta,
-                        "CuotasTotales": cuotas_totales,
-                        "CuotasPagadas": cuotas_pagadas
-                    }
-                    guardar_gasto(gasto)
-                    st.session_state.df_gastos = cargar_datos()
-                    st.success("✓ Gasto guardado correctamente")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
         st.subheader("🔍 Filtros")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            filtro_persona = st.selectbox("Persona", ["Todos"] + ["Marcelo", "Yenny"], key="filtro_persona")
-        with col2:
-            filtro_tarjeta = st.selectbox("Tarjeta", ["Todos"] + ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"], key="filtro_tarjeta")
-        with col3:
-            hoy = datetime.today()
-            meses_opciones = ["Todos"] + [f"{MESES_NUMERO[i]}/{hoy.year}" for i in range(1, 13)]
-            filtro_mes = st.selectbox("Mes", meses_opciones, key="filtro_mes")
-        with col4:
-            categorias_opciones = ["Todos", "Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"]
-            filtro_categoria = st.selectbox("Categoría", categorias_opciones, key="filtro_categoria")
-        
-        # Aplicar filtros
-        df_filtrado = st.session_state.df_gastos.copy()
-        
-        if filtro_persona != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Persona"] == filtro_persona]
-        
-        if filtro_tarjeta != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Tarjeta"] == filtro_tarjeta]
-        
-        if filtro_mes != "Todos":
-            mes_str, año_str = filtro_mes.split("/")
-            mes = list(MESES_NUMERO.keys())[list(MESES_NUMERO.values()).index(mes_str)]
-            año = int(año_str)
-            df_filtrado = df_filtrado[
-                (df_filtrado["Fecha"].dt.year == año) &
-                (df_filtrado["Fecha"].dt.month == mes)
-            ]
-        
-        if filtro_categoria != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
-        
-        # Mostrar tabla
-        st.subheader("📋 Lista de Gastos")
-        
-        if not df_filtrado.empty:
-            # Formatear datos para display
-            df_display = df_filtrado.copy()
-            df_display["Fecha"] = df_display["Fecha"].apply(fecha_obj_a_uy)
-            df_display["Monto"] = df_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
-            df_display["Cuotas"] = df_display.apply(lambda row: f"{int(row['CuotasPagadas'])}/{int(row['CuotasTotales'])}", axis=1)
-            
-            st.dataframe(df_display[["id", "Fecha", "Descripcion", "Categoria", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
-            
-            # Acciones
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("✏️ Editar Seleccionado"):
-                    st.info("Funcionalidad de edición próximamente")
-            with col2:
-                if st.button("🗑 Eliminar Seleccionado"):
-                    st.info("Funcionalidad de eliminación próximamente")
-            with col3:
-                if st.button("📄 Exportar PDF"):
-                    pdf = generar_reporte_pdf(df_filtrado, pd.DataFrame(), {"Persona": filtro_persona, "Tarjeta": filtro_tarjeta, "Mes": filtro_mes, "Categoría": filtro_categoria})
-                    pdf_output = pdf.output(dest='S').encode('latin-1')
-                    st.download_button("Descargar PDF", pdf_output, "reporte_gastos.pdf", "application/pdf")
-        else:
-            st.info("No hay gastos que coincidan con los filtros aplicados")
+    col1, col2, col3, col4 = st.columns(4)
 
-    with tab2:
-        st.header("💳 Gestión de Gastos Fijos")
-        
-        st.subheader("➕ Agregar/Editar Gasto Fijo")
-        with st.form("fijo_form"):
-            descripcion = st.text_input("Descripción")
-            monto = st.text_input("Monto mensual", "0,00")
-            categoria = st.selectbox("Categoría", ["Servicios", "Cargo fijo", "Suscripciones", "Educación", "Salud", "Transporte", "Otros"])
-            persona = st.selectbox("Persona", ["Marcelo", "Yenny", "Ambos"])
-            cuenta_debito = st.selectbox("Cuenta débito", ["BROU", "Santander", "OCA", "Otra"])
-            fecha_inicio = st.date_input("Fecha inicio", datetime.today())
-            fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
-            activo = st.checkbox("Activo", value=True)
-            
-            submitted = st.form_submit_button("Guardar Gasto Fijo")
-            
-            if submitted:
-                try:
-                    gasto_fijo = {
-                        "Descripcion": descripcion,
-                        "Monto": monto_uy_a_float(monto),
-                        "Categoria": categoria,
-                        "Persona": persona,
-                        "CuentaDebito": cuenta_debito,
-                        "FechaInicio": fecha_inicio.strftime("%d/%m/%Y"),
-                        "FechaFin": fecha_fin.strftime("%d/%m/%Y") if fecha_fin else "",
-                        "Activo": activo,
-                        "Variaciones": {},
-                        "Distribucion": {"Marcelo": 50, "Yenny": 50}
-                    }
-                    guardar_gasto_fijo(gasto_fijo)
-                    st.session_state.df_fijos = cargar_gastos_fijos()
-                    st.success("✓ Gasto fijo guardado correctamente")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-        
-        # Mostrar tabla
-        st.subheader("💳 Lista de Gastos Fijos")
-        
-        if not st.session_state.df_fijos.empty:
-            df_fijos_display = st.session_state.df_fijos.copy()
-            df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
-            df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
-            df_fijos_display = df_fijos_display.rename(columns={"CuentaDebito": "Cuenta", "FechaInicio": "Inicio", "FechaFin": "Fin"})
-            
-            st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
-        else:
-            st.info("No hay gastos fijos registrados")
+    with col1:
+        filtro_persona = st.selectbox("Persona", ["Todos"] + ["Marcelo", "Yenny"], key="filtro_persona")
+    with col2:
+        filtro_tarjeta = st.selectbox("Tarjeta", ["Todos"] + ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"], key="filtro_tarjeta")
+    with col3:
+        hoy = datetime.today()
+        meses_opciones = ["Todos"] + [f"{MESES_NUMERO[i]}/{hoy.year}" for i in range(1, 13)]
+        filtro_mes = st.selectbox("Mes", meses_opciones, key="filtro_mes")
+    with col4:
+        categorias_opciones = ["Todos", "Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"]
+        filtro_categoria = st.selectbox("Categoría", categorias_opciones, key="filtro_categoria")
 
-    with tab3:
-        st.header("⏰ Pagos Futuros")
-    
+    # Aplicar filtros
+    df_filtrado = st.session_state.df_gastos.copy()
+
+    if filtro_persona != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Persona"] == filtro_persona]
+
+    if filtro_tarjeta != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Tarjeta"] == filtro_tarjeta]
+
+    if filtro_mes != "Todos":
+        mes_str, año_str = filtro_mes.split("/")
+        mes = list(MESES_NUMERO.keys())[list(MESES_NUMERO.values()).index(mes_str)]
+        año = int(año_str)
+        df_filtrado = df_filtrado[
+            (df_filtrado["Fecha"].dt.year == año) &
+            (df_filtrado["Fecha"].dt.month == mes)
+        ]
+
+    if filtro_categoria != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
+
+    # Mostrar tabla
+    st.subheader("📋 Lista de Gastos")
+
+    if not df_filtrado.empty:
+        # Formatear datos para display
+        df_display = df_filtrado.copy()
+        df_display["Fecha"] = df_display["Fecha"].apply(fecha_obj_a_uy)
+        df_display["Monto"] = df_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
+        df_display["Cuotas"] = df_display.apply(lambda row: f"{int(row['CuotasPagadas'])}/{int(row['CuotasTotales'])}", axis=1)
+
+        st.dataframe(df_display[["id", "Fecha", "Descripcion", "Categoria", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
+
+    # Acciones
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("✏️ Editar Seleccionado"):
+            st.info("Funcionalidad de edición próximamente")
+    with col2:
+        if st.button("🗑 Eliminar Seleccionado"):
+            st.info("Funcionalidad de eliminación próximamente")
+    with col3:
+        if st.button("📄 Exportar PDF"):
+            pdf = generar_reporte_pdf(df_filtrado, st.session_state.df_fijos, {"Persona": filtro_persona, "Tarjeta": filtro_tarjeta, "Mes": filtro_mes, "Categoría": filtro_categoria})
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            st.download_button("Descargar PDF", pdf_output, "reporte_gastos.pdf", "application/pdf")
+    else:
+        st.info("No hay gastos que coincidan con los filtros aplicados")
+
+with tab2:
+    st.header("💳 Gestión de Gastos Fijos")
+
+    # Mostrar tabla
+    st.subheader("💳 Lista de Gastos Fijos")
+
+    if not st.session_state.df_fijos.empty:
+        df_fijos_display = st.session_state.df_fijos.copy()
+        df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
+        df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
+        df_fijos_display = df_fijos_display.rename(columns={"CuentaDebito": "Cuenta", "FechaInicio": "Inicio", "FechaFin": "Fin"})
+
+        st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
+    else:
+        st.info("No hay gastos fijos registrados")
+
+with tab3:
+    st.header("⏰ Pagos Futuros")
+
     # Marcar pagos del mes actual
     if st.button("✅ Marcar pagos del mes actual", key="marcar_pagos"):
         marcar_pagos_mes_actual()
@@ -935,7 +940,7 @@ def main():
         st.session_state.df_fijos = cargar_gastos_fijos()
         st.success("✓ Pagos del mes marcados")
         st.rerun()
-    
+
     st.subheader("📅 Resumen Mensual de Pagos Futuros")
     
     # Generar tabla horizontal como en el original
