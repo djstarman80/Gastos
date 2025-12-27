@@ -11,7 +11,7 @@ st.set_page_config(page_title="M&Y Finanzas Pro", layout="wide", page_icon="💰
 MESES_NOMBRE = {1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril', 5:'Mayo', 6:'Junio', 
                 7:'Julio', 8:'Agosto', 9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'}
 
-# --- FUNCIONES DE BASE DE DATOS (REPARACIÓN, RENOMBRE Y CONSULTA) ---
+# --- FUNCIONES DE BASE DE DATOS ---
 def ejecutar_query(q, p=()):
     conn = sqlite3.connect("finanzas.db")
     cursor = conn.cursor()
@@ -23,18 +23,15 @@ def ejecutar_query(q, p=()):
 def verificar_y_reparar_db():
     conn = sqlite3.connect("finanzas.db")
     c = conn.cursor()
-    
-    # 1. Asegurar existencia de tablas
     c.execute("CREATE TABLE IF NOT EXISTS gastos (id INTEGER PRIMARY KEY AUTOINCREMENT, Fecha TEXT, Monto REAL, Persona TEXT, Descripcion TEXT, Tarjeta TEXT, CuotasTotales INTEGER, CuotasPagadas INTEGER)")
     c.execute("CREATE TABLE IF NOT EXISTS gastos_fijos (id INTEGER PRIMARY KEY AUTOINCREMENT, Descripcion TEXT, Monto REAL, Persona TEXT, Cuenta TEXT, Activo BOOLEAN, MesesPagados TEXT)")
     
-    # 2. Reparar columnas faltantes
+    # Reparar columnas y renombrar "otra" a "DÉBITO"
     c.execute("PRAGMA table_info(gastos_fijos)")
     cols_fijos = [col[1] for col in c.fetchall()]
     if 'Cuenta' not in cols_fijos: c.execute("ALTER TABLE gastos_fijos ADD COLUMN Cuenta TEXT DEFAULT 'DÉBITO'")
     
-    # 3. RENOMBRAR "otra" o "Otros" a "DÉBITO" (REGLA SOLICITADA)
-    # Lo hacemos en ambas tablas para que todo quede unificado
+    # Regla: Renombrar "otra" o "Otros" a "DÉBITO"
     c.execute("UPDATE gastos_fijos SET Cuenta = 'DÉBITO' WHERE LOWER(Cuenta) IN ('otra', 'otros', 'otra ', 'otros ')")
     c.execute("UPDATE gastos SET Tarjeta = 'DÉBITO' WHERE LOWER(Tarjeta) IN ('otra', 'otros', 'otra ', 'otros ')")
     
@@ -47,14 +44,12 @@ def inicializar_estado():
     if 'editando' not in st.session_state: st.session_state.editando = None
 
 def manejar_db():
-    st.sidebar.title("🔐 Acceso a Datos")
-    archivo_subido = st.sidebar.file_uploader("Sube tu 'finanzas.db'", type="db")
+    st.sidebar.title("🔐 Datos y Backup")
+    archivo_subido = st.sidebar.file_uploader("📥 Sube tu finanzas.db", type="db")
     if archivo_subido and not st.session_state.db_cargada:
         with open("finanzas.db", "wb") as f: f.write(archivo_subido.getbuffer())
         verificar_y_reparar_db()
         st.session_state.db_cargada = True
-        # Si se renombraron cosas al subir, marcamos que hay cambios para descargar
-        st.session_state.hay_cambios = True 
         st.rerun()
     if not os.path.exists("finanzas.db"): verificar_y_reparar_db()
 
@@ -80,18 +75,10 @@ def generar_pdf_pro(df, titulo):
         pdf.ln()
     return pdf.output(dest="S").encode("latin-1", "replace")
 
-# --- CUERPO DE LA APP ---
+# --- APP PRINCIPAL ---
 def main():
     inicializar_estado()
     manejar_db()
-
-    # Botón de guardado para persistencia en celular
-    if st.session_state.hay_cambios:
-        st.info("💡 Se han actualizado datos (como el renombre de 'Otros' a 'DÉBITO').")
-        with open("finanzas.db", "rb") as f:
-            if st.download_button("💾 DESCARGAR Y ACTUALIZAR DB", f, "finanzas.db", use_container_width=True):
-                st.session_state.hay_cambios = False
-                st.rerun()
 
     conn = sqlite3.connect("finanzas.db")
     df_g = pd.read_sql_query("SELECT * FROM gastos", conn)
@@ -100,71 +87,78 @@ def main():
 
     t1, t2, t3, t4 = st.tabs(["➕ NUEVO", "📋 CUENTAS", "📊 PROYECCIÓN", "💾 EXPORTAR"])
 
-    # 1. REGISTRO
+    # --- 1. REGISTRO ---
     with t1:
         st.subheader("Registrar Movimiento")
-        tipo = st.radio("Clase:", ["Débito / Fijo", "Compra en Cuotas"], horizontal=True)
+        tipo = st.radio("Tipo:", ["Débito / Fijo", "Cuotas"], horizontal=True)
         with st.form("alta", clear_on_submit=True):
             d = st.text_input("Descripción")
             m = st.number_input("Monto ($)", min_value=0.0)
-            p = st.selectbox("Responsable", ["Marcelo", "Yenny"])
-            medio = st.selectbox("Medio de Pago", ["DÉBITO", "SANTANDER", "BROU", "OCA"])
-            c_totales = st.number_input("Cuotas totales", 1, 48, 1) if tipo == "Compra en Cuotas" else 1
+            p = st.selectbox("Persona", ["Marcelo", "Yenny"])
+            medio = st.selectbox("Medio", ["DÉBITO", "SANTANDER", "BROU", "OCA"])
+            cuotas = st.number_input("Cuotas totales", 1, 48, 1) if tipo == "Cuotas" else 1
             if st.form_submit_button("✅ GUARDAR"):
                 f = datetime.today().strftime("%d/%m/%Y")
-                if tipo == "Compra en Cuotas":
-                    ejecutar_query("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, Tarjeta, CuotasTotales, CuotasPagadas) VALUES (?,?,?,?,?,?,?)", (f, m, p, d, medio, c_totales, 0))
+                if tipo == "Cuotas":
+                    ejecutar_query("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, Tarjeta, CuotasTotales, CuotasPagadas) VALUES (?,?,?,?,?,?,?)", (f, m, p, d, medio, cuotas, 0))
                 else:
                     ejecutar_query("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)", (d, m, p, medio, 1, f))
                 st.rerun()
 
-    # 2. CUENTAS (EDITAR / ELIMINAR)
+    # --- 2. CUENTAS CON RESUMEN TOTAL ---
     with t2:
+        # --- CÁLCULOS DE RESUMEN ---
+        total_marcelo = df_f[df_f['Persona'] == "Marcelo"]['Monto'].sum() + df_g[df_g['Persona'] == "Marcelo"]['Monto'].sum()
+        total_yenny = df_f[df_f['Persona'] == "Yenny"]['Monto'].sum() + df_g[df_g['Persona'] == "Yenny"]['Monto'].sum()
+        total_general = total_marcelo + total_yenny
+
+        st.subheader("Resumen General")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("TOTAL GENERAL", f"$ {float_a_uy(total_general)}")
+        c2.metric("Marcelo", f"$ {float_a_uy(total_marcelo)}", delta_color="off")
+        c3.metric("Yenny", f"$ {float_a_uy(total_yenny)}", delta_color="off")
+        
+        st.divider()
+
         if st.session_state.editando:
             ed = st.session_state.editando
             with st.form("editor"):
                 n_d = st.text_input("Descripción", value=ed['desc'])
                 n_m = st.number_input("Monto", value=float(ed['monto']))
                 n_p = st.selectbox("Persona", ["Marcelo", "Yenny"], index=0 if ed['persona']=="Marcelo" else 1)
-                n_medio = st.selectbox("Medio", ["DÉBITO", "SANTANDER", "BROU", "OCA"], index=0)
                 if st.form_submit_button("✅ ACTUALIZAR"):
                     tabla = "gastos_fijos" if ed['tipo'] == 'fijo' else "gastos"
-                    col_medio = "Cuenta" if ed['tipo'] == 'fijo' else "Tarjeta"
-                    ejecutar_query(f"UPDATE {tabla} SET Descripcion=?, Monto=?, Persona=?, {col_medio}=? WHERE id=?", (n_d, n_m, n_p, n_medio, ed['id']))
+                    ejecutar_query(f"UPDATE {tabla} SET Descripcion=?, Monto=?, Persona=? WHERE id=?", (n_d, n_m, n_p, ed['id']))
                     st.session_state.editando = None
                     st.rerun()
 
-        # Medios dinámicos (esto mostrará DÉBITO, SANTANDER, etc.)
-        medios_f = df_f['Cuenta'].unique().tolist() if 'Cuenta' in df_f.columns else []
-        medios_v = df_g['Tarjeta'].unique().tolist() if 'Tarjeta' in df_g.columns else []
-        todos_medios = sorted(list(set(medios_f + medios_v + ["DÉBITO", "SANTANDER", "BROU", "OCA"])))
-
-        for m in todos_medios:
+        st.subheader("Detalle por Medio de Pago")
+        for m in ["DÉBITO", "SANTANDER", "BROU", "OCA"]:
             sf = df_f[df_f['Cuenta'] == m] if 'Cuenta' in df_f.columns else pd.DataFrame()
             sg = df_g[df_g['Tarjeta'] == m] if 'Tarjeta' in df_g.columns else pd.DataFrame()
             if not sf.empty or not sg.empty:
-                total_m = sf['Monto'].sum() + sg['Monto'].sum()
-                with st.expander(f"🏦 {m} - Total: ${float_a_uy(total_m)}"):
+                m_total = sf['Monto'].sum() + sg['Monto'].sum()
+                with st.expander(f"🏦 {m} - Total Medio: ${float_a_uy(m_total)}"):
                     for _, r in sf.iterrows():
-                        c1, c2, c3 = st.columns([0.6, 0.2, 0.2])
-                        c1.write(f"🏠 {r['Descripcion']} ({r['Persona']}): ${float_a_uy(r['Monto'])}")
-                        if c2.button("✏️", key=f"ef_{r['id']}"):
+                        col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+                        col1.write(f"🏠 {r['Descripcion']} ({r['Persona']}): ${float_a_uy(r['Monto'])}")
+                        if col2.button("✏️", key=f"ef_{r['id']}"):
                             st.session_state.editando = {'id':r['id'], 'desc':r['Descripcion'], 'monto':r['Monto'], 'persona':r['Persona'], 'tipo':'fijo'}
                             st.rerun()
-                        if c3.button("🗑️", key=f"df_{r['id']}"):
+                        if col3.button("🗑️", key=f"df_{r['id']}"):
                             ejecutar_query("DELETE FROM gastos_fijos WHERE id=?", (r['id'],)); st.rerun()
                     for _, r in sg.iterrows():
-                        c1, c2, c3 = st.columns([0.6, 0.2, 0.2])
-                        c1.write(f"💳 {r['Descripcion']} ({r['Persona']}): ${float_a_uy(r['Monto'])}")
-                        if c2.button("✏️", key=f"eg_{r['id']}"):
+                        col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+                        col1.write(f"💳 {r['Descripcion']} ({r['Persona']}): ${float_a_uy(r['Monto'])}")
+                        if col2.button("✏️", key=f"eg_{r['id']}"):
                             st.session_state.editando = {'id':r['id'], 'desc':r['Descripcion'], 'monto':r['Monto'], 'persona':r['Persona'], 'tipo':'cuota'}
                             st.rerun()
-                        if c3.button("🗑️", key=f"dg_{r['id']}"):
+                        if col3.button("🗑️", key=f"dg_{r['id']}"):
                             ejecutar_query("DELETE FROM gastos WHERE id=?", (r['id'],)); st.rerun()
 
-    # 3. PROYECCIÓN
+    # --- 3. PROYECCIÓN ---
     with t3:
-        st.subheader("Proyección Mensual")
+        st.subheader("Proyección a 6 Meses")
         inicio = datetime.today().replace(day=1)
         for i in range(6):
             mes = inicio + pd.DateOffset(months=i)
@@ -176,16 +170,21 @@ def main():
                 if i < (r.get('CuotasTotales', 1) - r.get('CuotasPagadas', 0)):
                     if r['Persona'] == "Marcelo": sm += r['Monto']
                     else: sy += r['Monto']
-            st.info(f"📅 {MESES_NOMBRE[mes.month]} {mes.year} | Marcelo: ${float_a_uy(sm)} | Yenny: ${float_a_uy(sy)}")
+            st.info(f"📅 {MESES_NOMBRE[mes.month]} {mes.year} | Marcelo: ${float_a_uy(sm)} | Yenny: ${float_a_uy(sy)} | Total: ${float_a_uy(sm+sy)}")
 
-    # 4. EXPORTAR
+    # --- 4. EXPORTAR ---
     with t4:
-        st.subheader("Exportar")
+        st.subheader("📥 Exportar Datos")
         df_f_exp = df_f.copy().rename(columns={'Cuenta':'Medio', 'MesesPagados':'Fecha'})
         df_g_exp = df_g.copy().rename(columns={'Tarjeta':'Medio'})
         master = pd.concat([df_f_exp, df_g_exp], ignore_index=True).reindex(columns=['Fecha', 'Descripcion', 'Monto', 'Persona', 'Medio']).fillna("S/D")
+
+        col_a, col_b, col_c = st.columns(3)
+        with open("finanzas.db", "rb") as f:
+            col_a.download_button("💾 Descargar SQL (.db)", f, f"finanzas_backup_{datetime.now().strftime('%Y%m%d')}.db", mime="application/x-sqlite3", use_container_width=True)
+        col_b.download_button("📊 Descargar CSV (Excel)", master.to_csv(index=False).encode('utf-8'), "finanzas_m_y.csv", mime="text/csv", use_container_width=True)
         if not master.empty:
-            st.download_button("📥 PDF PROFESIONAL", generar_pdf_pro(master, "Resumen Finanzas M&Y"), "reporte_my.pdf", use_container_width=True)
+            col_c.download_button("📄 Descargar Reporte PDF", generar_pdf_pro(master, "Resumen Finanzas M&Y"), "reporte_finanzas.pdf", mime="application/pdf", use_container_width=True)
 
 if __name__ == "__main__":
     main()
