@@ -964,6 +964,9 @@ def main():
                     
                     # Gastos fijos para este mes
                     pagos_mes = []
+                    total_mes = 0.0
+                    total_marcelo = 0.0
+                    total_yenny = 0.0
                     
                     for _, fijo in st.session_state.df_fijos.iterrows():
                         if not fijo["Activo"]:
@@ -983,12 +986,31 @@ def main():
                         pagos_mes.append({
                             "descripcion": fijo["Descripcion"],
                             "monto": monto_mes,
-                            "categoria": fijo["Categoria"]
+                            "categoria": fijo["Categoria"],
+                            "distribucion": fijo.get("Distribucion", {"Marcelo": 50, "Yenny": 50})
                         })
+                        
+                        total_mes += monto_mes
+                        
+                        # Calcular por persona
+                        if fijo["Persona"] == "Ambos":
+                            pct_marcelo = pagos_mes[-1]["distribucion"].get("Marcelo", 50) / 100
+                            pct_yenny = pagos_mes[-1]["distribucion"].get("Yenny", 50) / 100
+                            total_marcelo += monto_mes * pct_marcelo
+                            total_yenny += monto_mes * pct_yenny
+                        elif fijo["Persona"] == "Marcelo":
+                            total_marcelo += monto_mes
+                        elif fijo["Persona"] == "Yenny":
+                            total_yenny += monto_mes
                     
                     if pagos_mes:
                         for pago in pagos_mes:
                             st.write(f"• {pago['descripcion']}: ${float_a_monto_uy(pago['monto'])}")
+                        
+                        st.markdown("---")
+                        st.write(f"**Total mes:** ${float_a_monto_uy(total_mes)}")
+                        st.write(f"**Marcelo:** ${float_a_monto_uy(total_marcelo)}")
+                        st.write(f"**Yenny:** ${float_a_monto_uy(total_yenny)}")
                     else:
                         st.write("Sin pagos")
         
