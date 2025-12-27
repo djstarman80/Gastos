@@ -779,34 +779,38 @@ def main():
                     except Exception as e:
                         st.error(f"Error: {e}")
         
-        # Acciones adicionales
+        # Menú de acciones
         st.header("⚡ Acciones")
+        accion = st.selectbox("Seleccionar acción", ["Seleccionar", "Exportar PDF", "Backup BD", "Restaurar BD"], key="menu_acciones")
         
-        if st.button("📄 Exportar PDF", key="export_pdf_btn"):
-            pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
-            pdf_output = pdf.output(dest='S').encode('latin-1')
-            st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
+        if accion == "Exportar PDF":
+            if st.button("Generar PDF", key="gen_pdf"):
+                pdf = generar_reporte_pdf(st.session_state.df_gastos, st.session_state.df_fijos, {})
+                pdf_output = pdf.output(dest='S').encode('latin-1')
+                st.download_button("Descargar PDF", pdf_output, "reporte_financiero.pdf", "application/pdf", key="download_pdf")
         
-        if st.button("💾 Backup BD", key="backup_btn"):
-            try:
-                with open("finanzas.db", "rb") as f:
-                    db_data = f.read()
-                st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
-            except FileNotFoundError:
-                st.error("Base de datos no encontrada")
-        
-        uploaded_file = st.file_uploader("📁 Restaurar BD", type=["db"], key="upload_db")
-        if uploaded_file is not None:
-            if st.button("Confirmar Restauración", key="restore_btn"):
+        elif accion == "Backup BD":
+            if st.button("Generar Backup", key="gen_backup"):
                 try:
-                    with open("finanzas.db", "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    st.session_state.df_gastos = cargar_datos()
-                    st.session_state.df_fijos = cargar_gastos_fijos()
-                    st.success("Base de datos restaurada")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al restaurar: {e}")
+                    with open("finanzas.db", "rb") as f:
+                        db_data = f.read()
+                    st.download_button("Descargar Backup", db_data, "finanzas_backup.db", "application/octet-stream", key="download_backup")
+                except FileNotFoundError:
+                    st.error("Base de datos no encontrada")
+        
+        elif accion == "Restaurar BD":
+            uploaded_file = st.file_uploader("Seleccionar archivo .db", type=["db"], key="upload_db")
+            if uploaded_file is not None:
+                if st.button("Confirmar Restauración", key="restore_btn"):
+                    try:
+                        with open("finanzas.db", "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        st.session_state.df_gastos = cargar_datos()
+                        st.session_state.df_fijos = cargar_gastos_fijos()
+                        st.success("Base de datos restaurada")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al restaurar: {e}")
         
         # Filtros
         st.subheader("🔍 Filtros")
