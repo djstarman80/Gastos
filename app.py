@@ -989,8 +989,8 @@ def main():
                 if persona in ["Marcelo", "Yenny"]:
                     meses_pagos[mes_clave]["personas"][persona] += gasto["Monto"]
                 elif persona == "Ambos":
-                    meses_pagos[mes_clave]["personas"]["Marcelo"] += gasto["Monto"] / 2
-                    meses_pagos[mes_clave]["personas"]["Yenny"] += gasto["Monto"] / 2
+                    meses_pagos[mes_clave]["personas"]["Marcelo"] += gasto["Monto"]
+                    meses_pagos[mes_clave]["personas"]["Yenny"] += gasto["Monto"]
 
                 meses_pagos[mes_clave]["total"] += gasto["Monto"]
 
