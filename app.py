@@ -3,12 +3,10 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 import os
-from fpdf import FPDF
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="M&Y Finanzas", layout="wide", page_icon="💰")
 
-# Estado de la sesión para seguridad
 if 'ultimo_borrado' not in st.session_state: st.session_state.ultimo_borrado = None
 
 MESES_NOMBRE = {1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril', 5:'Mayo', 6:'Junio', 
@@ -28,23 +26,15 @@ def float_a_monto_uy(v):
 def init_db():
     conn = sqlite3.connect("finanzas.db")
     c = conn.cursor()
-    # Crear tablas si no existen
     c.execute("CREATE TABLE IF NOT EXISTS gastos (id INTEGER PRIMARY KEY AUTOINCREMENT, Fecha TEXT, Monto REAL, Persona TEXT, Descripcion TEXT, Tarjeta TEXT, CuotasTotales INTEGER, CuotasPagadas INTEGER, MesesPagados TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS gastos_fijos (id INTEGER PRIMARY KEY AUTOINCREMENT, Descripcion TEXT, Monto REAL, Persona TEXT, Cuenta TEXT, Activo BOOLEAN, MesesPagados TEXT)")
-    
-    # --- PARCHE DE SEGURIDAD PARA COLUMNAS FALTANTES ---
-    # Comprobar 'Tarjeta' en gastos
+    # Parches de seguridad
     c.execute("PRAGMA table_info(gastos)")
-    columnas_g = [col[1] for col in c.fetchall()]
-    if 'Tarjeta' not in columnas_g:
+    if 'Tarjeta' not in [col[1] for col in c.fetchall()]:
         c.execute("ALTER TABLE gastos ADD COLUMN Tarjeta TEXT DEFAULT 'BROU'")
-    
-    # Comprobar 'Cuenta' en gastos_fijos
     c.execute("PRAGMA table_info(gastos_fijos)")
-    columnas_f = [col[1] for col in c.fetchall()]
-    if 'Cuenta' not in columnas_f:
+    if 'Cuenta' not in [col[1] for col in c.fetchall()]:
         c.execute("ALTER TABLE gastos_fijos ADD COLUMN Cuenta TEXT DEFAULT 'DÉBITO'")
-    
     conn.commit()
     conn.close()
 
@@ -58,6 +48,7 @@ def main():
     st.sidebar.title("⚙️ Ajustes")
     dia_cierre = st.sidebar.slider("Día de Cierre", 1, 28, 10)
 
+    # BANNER DESHACER
     if st.session_state.ultimo_borrado:
         with st.container():
             col_inf, col_undo = st.columns([3, 1])
@@ -95,27 +86,43 @@ def main():
                     ejecutar_query("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)", (desc, m_f, pers, medio, 1, ""))
                 st.rerun()
 
-    # --- TAB 2: GESTIÓN POR TARJETA ---
+    # --- TAB 2: GESTIÓN POR TARJETA (CON TOTALES) ---
     with tab2:
         conn = sqlite3.connect("finanzas.db")
         df_g = pd.read_sql_query("SELECT * FROM gastos", conn)
         df_f = pd.read_sql_query("SELECT * FROM gastos_fijos", conn)
         conn.close()
-        for m in ["DÉBITO", "BROU", "OCA", "SANTANDER"]:
-            with st.expander(f"🏦 {m}"):
-                # Cuotas
-                sub_g = df_g[df_g['Tarjeta']==m]
+
+        lista_medios = ["DÉBITO", "BROU", "OCA", "SANTANDER"]
+        for m in lista_medios:
+            # Filtros insensibles a mayúsculas
+            sub_g = df_g[df_g['Tarjeta'].str.upper() == m.upper()]
+            sub_f = df_f[(df_f['Cuenta'].str.upper() == m.upper()) & (df_f['Activo'] == 1)]
+            
+            # Calcular Total de este medio
+            total_medio = sub_g['Monto'].sum() + sub_f['Monto'].sum()
+            
+            with st.expander(f"🏦 {m} — TOTAL: ${float_a_monto_uy(total_medio)}"):
+                # Mostrar Cuotas
+                st.write("**💳 Cuotas**")
+                if sub_g.empty: st.info("Sin cuotas")
                 for _, r in sub_g.iterrows():
                     c_t, c_b = st.columns([4, 1])
-                    c_t.write(f"💳 {r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])} [{r['CuotasPagadas']}/{r['CuotasTotales']}]")
+                    c_t.write(f"{r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])} [{r['CuotasPagadas']}/{r['CuotasTotales']}]")
                     if c_b.button("🗑️", key=f"dg{r['id']}"):
                         st.session_state.ultimo_borrado = {'tabla':'gastos', 'datos':r.values, 'nombre':r['Descripcion']}
                         ejecutar_query("DELETE FROM gastos WHERE id=?", (r['id'],)); st.rerun()
-                # Fijos
-                sub_f = df_f[df_f['Cuenta']==m]
-                for _, r in sub_f.iterrows():
+                
+                st.divider()
+                
+                # Mostrar Fijos
+                st.write("**🏠 Gastos Fijos (Solo Activos)**")
+                sub_f_todas = df_f[df_f['Cuenta'].str.upper() == m.upper()]
+                if sub_f_todas.empty: st.info("Sin fijos")
+                for _, r in sub_f_todas.iterrows():
                     c_t, c_b = st.columns([4, 1])
-                    c_t.write(f"🏠 {r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])} {'✅' if r['Activo'] else '❌'}")
+                    est = "✅" if r['Activo'] else "❌"
+                    c_t.write(f"{est} {r['Descripcion']} ({r['Persona']}): ${float_a_monto_uy(r['Monto'])}")
                     if c_b.button("🗑️", key=f"df{r['id']}"):
                         st.session_state.ultimo_borrado = {'tabla':'gastos_fijos', 'datos':r.values, 'nombre':r['Descripcion']}
                         ejecutar_query("DELETE FROM gastos_fijos WHERE id=?", (r['id'],)); st.rerun()
