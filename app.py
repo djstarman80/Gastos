@@ -925,8 +925,8 @@ def main():
         else:
             st.info("No hay gastos fijos registrados")
 
-with tab3:
-    st.header("⏰ Pagos Futuros")
+    with tab3:
+        st.header("⏰ Pagos Futuros")
     
     # Marcar pagos del mes actual
     if st.button("✅ Marcar pagos del mes actual", key="marcar_pagos"):
