@@ -809,8 +809,7 @@ with tab1:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
-    
-    # Filtros
+
     st.subheader("🔍 Filtros")
         col1, col2, col3, col4 = st.columns(4)
         
