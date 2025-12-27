@@ -6,7 +6,7 @@ import json
 import os
 from fpdf import FPDF
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Finanzas M&Y", layout="wide", page_icon="💰")
 
 MESES_NOMBRE = {
@@ -38,13 +38,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS gastos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             Fecha TEXT, Monto REAL, Persona TEXT, Descripcion TEXT, 
-            CuotasTotales INTEGER, CuotasPagadas INTEGER, MesesPagados TEXT
+            Tarjeta TEXT, CuotasTotales INTEGER, CuotasPagadas INTEGER, MesesPagados TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gastos_fijos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Descripcion TEXT, Monto REAL, Persona TEXT, Activo BOOLEAN, MesesPagados TEXT
+            Descripcion TEXT, Monto REAL, Persona TEXT, 
+            Cuenta TEXT, Activo BOOLEAN, MesesPagados TEXT
         )
     """)
     conn.commit()
@@ -96,32 +97,30 @@ def main():
     with tab1:
         col_a, col_b = st.columns(2)
         with col_a:
-            st.subheader("Gasto por Cuotas")
+            st.subheader("💳 Gasto por Cuotas")
             with st.form("f_cuotas"):
-                desc = st.text_input("Descripción")
+                desc = st.text_input("Descripción (ej. Zapatería)")
                 monto_cuota = st.text_input("Valor de CADA CUOTA ($)")
                 cuotas_t = st.number_input("Cantidad de cuotas", 1, 36, 1)
+                tarjeta = st.selectbox("Tarjeta / Medio", ["BROU Recompensa", "Santander", "OCA", "Itaú", "Efectivo"])
                 pers = st.selectbox("A nombre de:", ["Marcelo", "Yenny"], key="p1")
                 if st.form_submit_button("Guardar Gasto"):
                     conn = sqlite3.connect("finanzas.db")
-                    conn.execute("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, CuotasTotales, CuotasPagadas, MesesPagados) VALUES (?,?,?,?,?,?,?)",
-                                 (datetime.today().strftime("%d/%m/%Y"), monto_uy_a_float(monto_cuota), pers, desc, cuotas_t, 0, ""))
-                    conn.commit()
-                    st.success("Gasto guardado")
-                    st.rerun()
+                    conn.execute("INSERT INTO gastos (Fecha, Monto, Persona, Descripcion, Tarjeta, CuotasTotales, CuotasPagadas, MesesPagados) VALUES (?,?,?,?,?,?,?,?)",
+                                 (datetime.today().strftime("%d/%m/%Y"), monto_uy_a_float(monto_cuota), pers, desc, tarjeta, cuotas_t, 0, ""))
+                    conn.commit(); st.success("Gasto guardado"); st.rerun()
         with col_b:
-            st.subheader("Gasto Fijo (Mensual)")
+            st.subheader("🏦 Gasto Fijo (Débito)")
             with st.form("f_fijo"):
-                desc_f = st.text_input("Descripción")
+                desc_f = st.text_input("Descripción (ej. UTE/Internet)")
                 monto_f = st.text_input("Monto Mensual ($)")
-                pers_f = st.selectbox("A nombre de:", ["Marcelo", "Yenny"], key="p2")
+                cuenta = st.selectbox("Se debita de:", ["Cuenta BROU", "Cuenta Santander", "Caja Yenny", "Caja Marcelo"])
+                pers_f = st.selectbox("Responsable:", ["Marcelo", "Yenny"], key="p2")
                 if st.form_submit_button("Guardar Fijo"):
                     conn = sqlite3.connect("finanzas.db")
-                    conn.execute("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Activo, MesesPagados) VALUES (?,?,?,?,?)",
-                                 (desc_f, monto_uy_a_float(monto_f), pers_f, 1, ""))
-                    conn.commit()
-                    st.success("Fijo guardado")
-                    st.rerun()
+                    conn.execute("INSERT INTO gastos_fijos (Descripcion, Monto, Persona, Cuenta, Activo, MesesPagados) VALUES (?,?,?,?,?,?)",
+                                 (desc_f, monto_uy_a_float(monto_f), pers_f, cuenta, 1, ""))
+                    conn.commit(); st.success("Fijo guardado"); st.rerun()
 
     # --- TAB 2: GESTIÓN ---
     with tab2:
@@ -130,28 +129,29 @@ def main():
             st.write("### Cuotas Activas")
             df_g = cargar_datos()
             for _, r in df_g.iterrows():
-                with st.expander(f"{r['Descripcion']} - {r['Persona']} (${float_a_monto_uy(r['Monto'])})"):
+                with st.expander(f"{r['Descripcion']} - {r['Persona']} ({r['Tarjeta']})"):
+                    st.write(f"Monto Cuota: ${float_a_monto_uy(r['Monto'])}")
                     st.write(f"Pago: {r['CuotasPagadas']}/{r['CuotasTotales']}")
-                    if st.button(f"Borrar ID {r['id']}", key=f"dg{r['id']}"):
+                    if st.button(f"Borrar Gasto {r['id']}", key=f"dg{r['id']}"):
                         conn = sqlite3.connect("finanzas.db"); conn.execute("DELETE FROM gastos WHERE id=?", (r['id'],)); conn.commit(); st.rerun()
         with col_g2:
             st.write("### Gastos Fijos")
             df_f = cargar_gastos_fijos()
             for _, r in df_f.iterrows():
-                with st.expander(f"{r['Descripcion']} - {r['Persona']} ({'✅' if r['Activo'] else '❌'})"):
+                with st.expander(f"{r['Descripcion']} - {r['Persona']} ({r['Cuenta']})"):
+                    estado = "✅ Activo" if r['Activo'] else "❌ Inactivo"
+                    st.write(f"Estado: {estado}")
                     if st.button("Alternar Activo", key=f"tf{r['id']}"):
                         nuevo = 0 if r['Activo'] else 1
                         conn = sqlite3.connect("finanzas.db"); conn.execute("UPDATE gastos_fijos SET Activo=? WHERE id=?", (nuevo, r['id'])); conn.commit(); st.rerun()
-                    if st.button("Eliminar", key=f"df{r['id']}"):
+                    if st.button("Eliminar Fijo", key=f"df{r['id']}"):
                         conn = sqlite3.connect("finanzas.db"); conn.execute("DELETE FROM gastos_fijos WHERE id=?", (r['id'],)); conn.commit(); st.rerun()
 
-    # --- LÓGICA DE PROYECCIÓN (REUTILIZABLE) ---
+    # --- LÓGICA DE PROYECCIÓN ---
     hoy = datetime.today()
     inicio_p = hoy.replace(day=1) + pd.DateOffset(months=1) if hoy.day >= dia_cierre else hoy.replace(day=1)
-    
+    df_g_act = cargar_datos(); df_f_act = cargar_gastos_fijos()
     proyeccion = []
-    df_g_act = cargar_datos()
-    df_f_act = cargar_gastos_fijos()
     for i in range(12):
         mes_f = inicio_p + pd.DateOffset(months=i)
         sm, sy = 0.0, 0.0
@@ -166,32 +166,39 @@ def main():
 
     # --- TAB 3: PAGOS FUTUROS ---
     with tab3:
-        st.header(f"Pagos: {MESES_NOMBRE[hoy.month]}")
+        st.header(f"Proyección de Pagos")
         st.table(pd.DataFrame(proyeccion))
-        st.divider()
-        tm = sum([monto_uy_a_float(x['Marcelo']) for x in proyeccion]) / 12
-        ty = sum([monto_uy_a_float(x['Yenny']) for x in proyeccion]) / 12
-        c1, c2, c3 = st.columns(3); c1.metric("Promedio Marcelo", f"${float_a_monto_uy(tm)}"); c2.metric("Promedio Yenny", f"${float_a_monto_uy(ty)}"); c3.metric("Total", f"${float_a_monto_uy(tm+ty)}")
+        
+        st.subheader(f"🔍 Desglose por Tarjeta/Cuenta ({proyeccion[0]['Mes']})")
+        c_tar, c_cue = st.columns(2)
+        with c_tar:
+            st.write("**💳 Tarjetas (Cuotas)**")
+            res_t = {}
+            for _, g in df_g_act.iterrows():
+                if 0 < (g['CuotasTotales'] - g['CuotasPagadas']):
+                    res_t[g['Tarjeta']] = res_t.get(g['Tarjeta'], 0) + g['Monto']
+            for k, v in res_t.items(): st.write(f"- {k}: ${float_a_monto_uy(v)}")
+        with c_cue:
+            st.write("**🏦 Cuentas (Fijos)**")
+            res_c = {}
+            for _, f in df_f_act[df_f_act['Activo']==1].iterrows():
+                res_c[f['Cuenta']] = res_c.get(f['Cuenta'], 0) + f['Monto']
+            for k, v in res_c.items(): st.write(f"- {k}: ${float_a_monto_uy(v)}")
 
     # --- TAB 4: RESPALDO Y REPORTES ---
     with tab4:
         st.header("Herramientas de Datos")
-        c_r1, c_r2 = st.columns(2)
-        with c_r1:
-            st.subheader("📄 Exportar PDF")
-            if st.button("Generar Reporte 12 Meses"):
-                pdf = FPDF()
-                pdf.add_page(); pdf.set_font("Arial", "B", 14); pdf.cell(0, 10, "Proyeccion Financiera M&Y", 0, 1, "C"); pdf.ln(5)
-                pdf.set_font("Arial", "B", 10); pdf.cell(40, 8, "Mes", 1); pdf.cell(50, 8, "Marcelo", 1); pdf.cell(50, 8, "Yenny", 1); pdf.cell(50, 8, "Total", 1); pdf.ln()
-                pdf.set_font("Arial", "", 10)
-                for f in proyeccion:
-                    pdf.cell(40, 8, f["Mes"], 1); pdf.cell(50, 8, f["Marcelo"], 1); pdf.cell(50, 8, f["Yenny"], 1); pdf.cell(50, 8, f["Total Mes"], 1); pdf.ln()
-                st.download_button("Descargar PDF", pdf.output(dest='S').encode('latin-1'), "Reporte.pdf", "application/pdf")
-        with c_r2:
-            st.subheader("💾 Backup")
-            if os.path.exists("finanzas.db"):
-                with open("finanzas.db", "rb") as f:
-                    st.download_button("Descargar Base de Datos (.db)", f, "finanzas.db")
+        if st.button("Generar Reporte PDF"):
+            pdf = FPDF()
+            pdf.add_page(); pdf.set_font("Arial", "B", 14); pdf.cell(0, 10, "Proyeccion Financiera M&Y", 0, 1, "C")
+            pdf.set_font("Arial", "B", 10); pdf.cell(40, 8, "Mes", 1); pdf.cell(50, 8, "Marcelo", 1); pdf.cell(50, 8, "Yenny", 1); pdf.cell(50, 8, "Total", 1); pdf.ln()
+            pdf.set_font("Arial", "", 10)
+            for f in proyeccion:
+                pdf.cell(40, 8, f["Mes"], 1); pdf.cell(50, 8, f["Marcelo"], 1); pdf.cell(50, 8, f["Yenny"], 1); pdf.cell(50, 8, f["Total Mes"], 1); pdf.ln()
+            st.download_button("Descargar PDF", pdf.output(dest='S').encode('latin-1'), "Reporte_M&Y.pdf", "application/pdf")
+        if os.path.exists("finanzas.db"):
+            with open("finanzas.db", "rb") as f:
+                st.download_button("Descargar Backup Base de Datos (.db)", f, "finanzas.db")
 
 if __name__ == "__main__":
     main()
