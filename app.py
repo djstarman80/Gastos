@@ -738,6 +738,8 @@ def main():
         st.session_state.df_gastos = cargar_datos()
     if 'df_fijos' not in st.session_state:
         st.session_state.df_fijos = cargar_gastos_fijos()
+    if 'tipo_gasto' not in st.session_state:
+        st.session_state.tipo_gasto = "Gasto Normal"
 
     # Sidebar con acciones
     with st.sidebar:
@@ -773,15 +775,24 @@ def main():
                     except Exception as e:
                         st.error(f"Error al restaurar: {e}")
 
-    # Tabs principales
-    tab0, tab1, tab2, tab3 = st.tabs(["🆕 Agregar Datos", "📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
+    # Tabs principales - AHORA SOLO 3 TABS
+    tab_ingreso, tab_gastos, tab_fijos, tab_pagos = st.tabs(["➕ Ingresar Datos", "📋 Gastos", "💳 Gastos Fijos", "⏰ Pagos Futuros"])
 
-    with tab0:
-        st.header("🆕 Agregar Datos")
+    with tab_ingreso:
+        st.header("➕ Ingresar Nuevo Gasto")
         
-        tipo = st.radio("Tipo de ingreso", ["Gasto", "Gasto Fijo"])
+        # Selección de tipo de gasto
+        tipo_gasto = st.radio(
+            "Selecciona el tipo de gasto:",
+            ["Gasto Normal", "Gasto Fijo"],
+            horizontal=True,
+            key="tipo_gasto_radio"
+        )
         
-        if tipo == "Gasto":
+        st.divider()
+        
+        if tipo_gasto == "Gasto Normal":
+            st.subheader("📝 Nuevo Gasto Normal")
             with st.form("gasto_form"):
                 fecha = st.date_input("Fecha", datetime.today())
                 monto = st.text_input("Monto", "0,00")
@@ -789,10 +800,13 @@ def main():
                 persona = st.selectbox("Persona", ["Marcelo", "Yenny"])
                 descripcion = st.text_input("Descripción")
                 tarjeta = st.selectbox("Tarjeta", ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"])
-                cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
-                cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
+                col1, col2 = st.columns(2)
+                with col1:
+                    cuotas_totales = st.selectbox("Cuotas Totales", list(range(1, 13)), index=0)
+                with col2:
+                    cuotas_pagadas = st.selectbox("Cuotas Pagadas", list(range(0, 13)), index=0)
                 
-                submitted = st.form_submit_button("Guardar Gasto")
+                submitted = st.form_submit_button("💾 Guardar Gasto", use_container_width=True)
                 
                 if submitted:
                     try:
@@ -808,24 +822,56 @@ def main():
                         }
                         guardar_gasto(gasto)
                         st.session_state.df_gastos = cargar_datos()
-                        st.success("✓ Gasto guardado correctamente")
+                        st.success("✓ Gasto normal guardado correctamente")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
         
-        if tipo == "Gasto Fijo":
+        else:  # Gasto Fijo
+            st.subheader("💳 Nuevo Gasto Fijo")
             with st.form("fijo_form"):
                 descripcion = st.text_input("Descripción")
                 monto = st.text_input("Monto mensual", "0,00")
                 categoria = st.selectbox("Categoría", ["Servicios", "Cargo fijo", "Suscripciones", "Educación", "Salud", "Transporte", "Otros"])
                 persona = st.selectbox("Persona", ["Marcelo", "Yenny", "Ambos"])
                 cuenta_debito = st.selectbox("Cuenta débito", ["BROU", "Santander", "OCA", "Otra"])
-                fecha_inicio = st.date_input("Fecha inicio", datetime.today())
-                fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    fecha_inicio = st.date_input("Fecha inicio", datetime.today())
+                with col2:
+                    fecha_fin = st.date_input("Fecha fin (opcional)", value=None)
+                
                 activo = st.checkbox("Activo", value=True)
-
-                submitted = st.form_submit_button("Guardar Gasto Fijo")
-
+                
+                if persona == "Ambos":
+                    st.subheader("📊 Distribución del Gasto")
+                    col_dist1, col_dist2 = st.columns(2)
+                    with col_dist1:
+                        porcentaje_marcelo = st.slider("Porcentaje Marcelo", 0, 100, 50)
+                    with col_dist2:
+                        porcentaje_yenny = st.slider("Porcentaje Yenny", 0, 100, 50)
+                    
+                    # Ajustar para que sumen 100%
+                    if porcentaje_marcelo + porcentaje_yenny != 100:
+                        st.warning(f"La distribución suma {porcentaje_marcelo + porcentaje_yenny}%. Se ajustará automáticamente.")
+                        if porcentaje_marcelo + porcentaje_yenny > 0:
+                            porcentaje_marcelo_ajustado = int((porcentaje_marcelo / (porcentaje_marcelo + porcentaje_yenny)) * 100)
+                            porcentaje_yenny_ajustado = 100 - porcentaje_marcelo_ajustado
+                        else:
+                            porcentaje_marcelo_ajustado = 50
+                            porcentaje_yenny_ajustado = 50
+                    else:
+                        porcentaje_marcelo_ajustado = porcentaje_marcelo
+                        porcentaje_yenny_ajustado = porcentaje_yenny
+                    
+                    st.info(f"Distribución final: Marcelo {porcentaje_marcelo_ajustado}% - Yenny {porcentaje_yenny_ajustado}%")
+                else:
+                    porcentaje_marcelo_ajustado = 100 if persona == "Marcelo" else 0
+                    porcentaje_yenny_ajustado = 100 if persona == "Yenny" else 0
+                
+                submitted = st.form_submit_button("💾 Guardar Gasto Fijo", use_container_width=True)
+                
                 if submitted:
                     try:
                         gasto_fijo = {
@@ -838,7 +884,7 @@ def main():
                             "FechaFin": fecha_fin.strftime("%d/%m/%Y") if fecha_fin else "",
                             "Activo": activo,
                             "Variaciones": {},
-                            "Distribucion": {"Marcelo": 50, "Yenny": 50}
+                            "Distribucion": {"Marcelo": porcentaje_marcelo_ajustado, "Yenny": porcentaje_yenny_ajustado}
                         }
                         guardar_gasto_fijo(gasto_fijo)
                         st.session_state.df_fijos = cargar_gastos_fijos()
@@ -847,342 +893,297 @@ def main():
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-    with tab1:
-        st.header("📋 Gestión de Gastos")
+    with tab_gastos:
+        st.header("📋 Lista de Gastos Normales")
         
         st.subheader("🔍 Filtros")
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        filtro_persona = st.selectbox("Persona", ["Todos"] + ["Marcelo", "Yenny"], key="filtro_persona")
-    with col2:
-        filtro_tarjeta = st.selectbox("Tarjeta", ["Todos"] + ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"], key="filtro_tarjeta")
-    with col3:
-        hoy = datetime.today()
-        meses_opciones = ["Todos"] + [f"{MESES_NUMERO[i]}/{hoy.year}" for i in range(1, 13)]
-        filtro_mes = st.selectbox("Mes", meses_opciones, key="filtro_mes")
-    with col4:
-        categorias_opciones = ["Todos", "Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"]
-        filtro_categoria = st.selectbox("Categoría", categorias_opciones, key="filtro_categoria")
-
-    # Aplicar filtros
-    df_filtrado = st.session_state.df_gastos.copy()
-
-    if filtro_persona != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Persona"] == filtro_persona]
-
-    if filtro_tarjeta != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Tarjeta"] == filtro_tarjeta]
-
-    if filtro_mes != "Todos":
-        mes_str, año_str = filtro_mes.split("/")
-        mes = list(MESES_NUMERO.keys())[list(MESES_NUMERO.values()).index(mes_str)]
-        año = int(año_str)
-        df_filtrado = df_filtrado[
-            (df_filtrado["Fecha"].dt.year == año) &
-            (df_filtrado["Fecha"].dt.month == mes)
-        ]
-
-    if filtro_categoria != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
-
-    # Mostrar tabla
-    st.subheader("📋 Lista de Gastos")
-
-    if not df_filtrado.empty:
-        # Formatear datos para display
-        df_display = df_filtrado.copy()
-        df_display["Fecha"] = df_display["Fecha"].apply(fecha_obj_a_uy)
-        df_display["Monto"] = df_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
-        df_display["Cuotas"] = df_display.apply(lambda row: f"{int(row['CuotasPagadas'])}/{int(row['CuotasTotales'])}", axis=1)
-
-        st.dataframe(df_display[["id", "Fecha", "Descripcion", "Categoria", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
-
-    # Acciones
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("✏️ Editar Seleccionado"):
-            st.info("Funcionalidad de edición próximamente")
-    with col2:
-        if st.button("🗑 Eliminar Seleccionado"):
-            st.info("Funcionalidad de eliminación próximamente")
-    with col3:
-        if st.button("📄 Exportar PDF"):
-            pdf = generar_reporte_pdf(df_filtrado, st.session_state.df_fijos, {"Persona": filtro_persona, "Tarjeta": filtro_tarjeta, "Mes": filtro_mes, "Categoría": filtro_categoria})
-            pdf_output = pdf.output(dest='S').encode('latin-1')
-            st.download_button("Descargar PDF", pdf_output, "reporte_gastos.pdf", "application/pdf")
-    else:
-        st.info("No hay gastos que coincidan con los filtros aplicados")
-
-with tab2:
-    st.header("💳 Gestión de Gastos Fijos")
-
-    # Mostrar tabla
-    st.subheader("💳 Lista de Gastos Fijos")
-
-    if not st.session_state.df_fijos.empty:
-        df_fijos_display = st.session_state.df_fijos.copy()
-        df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
-        df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
-        df_fijos_display = df_fijos_display.rename(columns={"CuentaDebito": "Cuenta", "FechaInicio": "Inicio", "FechaFin": "Fin"})
-
-        st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
-    else:
-        st.info("No hay gastos fijos registrados")
-
-with tab3:
-    st.header("⏰ Pagos Futuros")
-
-    # Marcar pagos del mes actual
-    if st.button("✅ Marcar pagos del mes actual", key="marcar_pagos"):
-        marcar_pagos_mes_actual()
-        st.session_state.df_gastos = cargar_datos()
-        st.session_state.df_fijos = cargar_gastos_fijos()
-        st.success("✓ Pagos del mes marcados")
-        st.rerun()
-
-    st.subheader("📅 Resumen Mensual de Pagos Futuros")
-    
-    # Generar tabla horizontal como en el original
-    hoy = datetime.today()
-    mes_actual = pd.Timestamp(year=hoy.year, month=hoy.month, day=1)
-    meses_a_mostrar = 12  # Mostrar 12 meses
-    
-    # Obtener meses con pagos
-    meses_pagos = {}
-
-    # Procesar gastos normales con cuotas pendientes
-    for _, gasto in st.session_state.df_gastos.iterrows():
-        cuotas_totales = int(gasto["CuotasTotales"] or 1)
-        cuotas_pagadas = int(gasto["CuotasPagadas"] or 0)
+        col1, col2, col3, col4 = st.columns(4)
         
-        if cuotas_pagadas >= cuotas_totales:
-            continue
-
-        fecha_gasto = pd.to_datetime(gasto["Fecha"], dayfirst=True, errors="coerce")
-        if pd.isna(fecha_gasto):
-            continue
-
-        dia_gasto = fecha_gasto.day
-        if dia_gasto >= 5:
-            primer_mes_pago = fecha_gasto.replace(day=1) + pd.DateOffset(months=1)
-        else:
-            primer_mes_pago = fecha_gasto.replace(day=1)
-
-        # Calcular monto por cuota
-        monto_total = float(gasto["Monto"])
-        monto_por_cuota = monto_total / cuotas_totales if cuotas_totales > 0 else monto_total
-
-        for i in range(cuotas_pagadas, cuotas_totales):
-            mes_pago = primer_mes_pago + pd.DateOffset(months=i)
-            if mes_pago < mes_actual:
-                continue
-            mes_clave = mes_pago.strftime("%Y-%m")
-
-            if mes_clave not in meses_pagos:
-                meses_pagos[mes_clave] = {
-                    "mes_nombre": MESES_NUMERO[mes_pago.month],
-                    "año": mes_pago.year,
-                    "tarjetas": {"BROU": 0, "Santander": 0, "OCA": 0, "Otra": 0, "Efectivo": 0, "Transferencia": 0},
-                    "personas": {"Marcelo": 0, "Yenny": 0},
-                    "total": 0
-                }
-
-            # Asignar a tarjeta
-            tarjeta = gasto.get("Tarjeta", "Otra")
-            if tarjeta in meses_pagos[mes_clave]["tarjetas"]:
-                meses_pagos[mes_clave]["tarjetas"][tarjeta] += monto_por_cuota
-            else:
-                # Si la tarjeta no está en la lista, agregarla a "Otra"
-                meses_pagos[mes_clave]["tarjetas"]["Otra"] += monto_por_cuota
-
-            # Asignar a persona
-            persona = gasto.get("Persona", "Marcelo")
-            if persona == "Marcelo":
-                meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_por_cuota
-            elif persona == "Yenny":
-                meses_pagos[mes_clave]["personas"]["Yenny"] += monto_por_cuota
-            # Si no es ni Marcelo ni Yenny, no asignamos a nadie
-
-            meses_pagos[mes_clave]["total"] += monto_por_cuota
-
-    # Procesar gastos fijos
-    for _, fijo in st.session_state.df_fijos.iterrows():
-        if not fijo["Activo"]:
-            continue
+        with col1:
+            filtro_persona = st.selectbox("Persona", ["Todos"] + ["Marcelo", "Yenny"], key="filtro_persona_gastos")
+        with col2:
+            filtro_tarjeta = st.selectbox("Tarjeta", ["Todos"] + ["BROU", "Santander", "OCA", "Otra", "Efectivo", "Transferencia"], key="filtro_tarjeta_gastos")
+        with col3:
+            hoy = datetime.today()
+            meses_opciones = ["Todos"] + [f"{MESES_NUMERO[i]}/{hoy.year}" for i in range(1, 13)]
+            filtro_mes = st.selectbox("Mes", meses_opciones, key="filtro_mes_gastos")
+        with col4:
+            categorias_opciones = ["Todos", "Compras", "Cargo fijo", "Otros", "Supermercado", "Servicios", "Salidas", "Educación", "Salud", "Transporte", "Regalos"]
+            filtro_categoria = st.selectbox("Categoría", categorias_opciones, key="filtro_categoria_gastos")
         
-        fecha_inicio = pd.to_datetime(fijo["FechaInicio"], dayfirst=True, errors="coerce")
-        if pd.isna(fecha_inicio):
-            continue
+        # Aplicar filtros
+        df_filtrado = st.session_state.df_gastos.copy()
         
-        fecha_fin = pd.to_datetime(fijo.get("FechaFin"), dayfirst=True, errors="coerce") if fijo.get("FechaFin") else None
+        if filtro_persona != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Persona"] == filtro_persona]
         
-        for i in range(meses_a_mostrar):
-            mes_fecha = mes_actual + pd.DateOffset(months=i)
-            mes_clave = mes_fecha.strftime("%Y-%m")
-            
-            if fecha_inicio > mes_fecha:
-                continue
-            if fecha_fin and fecha_fin < mes_fecha:
-                continue
-            
-            # Verificar si ya pagado
-            meses_pagados = str(fijo.get("MesesPagados", ""))
-            if mes_clave in meses_pagados:
-                continue
-            
-            # Obtener monto
-            monto_mes = float(fijo.get("Monto", 0))
-            if fijo.get("Variaciones") and isinstance(fijo["Variaciones"], dict) and mes_clave in fijo["Variaciones"]:
-                try:
-                    monto_mes = float(fijo["Variaciones"][mes_clave])
-                except:
-                    monto_mes = float(fijo.get("Monto", 0))
-            
-            if mes_clave not in meses_pagos:
-                meses_pagos[mes_clave] = {
-                    "mes_nombre": MESES_NUMERO[mes_fecha.month],
-                    "año": mes_fecha.year,
-                    "tarjetas": {"BROU": 0, "Santander": 0, "OCA": 0, "Otra": 0, "Efectivo": 0, "Transferencia": 0},
-                    "personas": {"Marcelo": 0, "Yenny": 0},
-                    "total": 0
-                }
-            
-            # Asignar a tarjeta
-            tarjeta = fijo.get("CuentaDebito", "Otra")
-            if tarjeta in meses_pagos[mes_clave]["tarjetas"]:
-                meses_pagos[mes_clave]["tarjetas"][tarjeta] += monto_mes
-            else:
-                # Si la tarjeta no está en la lista, agregarla a "Otra"
-                meses_pagos[mes_clave]["tarjetas"]["Otra"] += monto_mes
-            
-            # Asignar a persona según distribución
-            persona = fijo.get("Persona", "Marcelo")
-            if persona == "Ambos":
-                # Si es "Ambos", distribuir según el campo Distribucion
-                distribucion = fijo.get("Distribucion", {"Marcelo": 50, "Yenny": 50})
-                if isinstance(distribucion, dict):
-                    porcentaje_marcelo = float(distribucion.get("Marcelo", 50))
-                    porcentaje_yenny = float(distribucion.get("Yenny", 50))
-                    
-                    # Normalizar si la suma no es 100%
-                    total_porcentaje = porcentaje_marcelo + porcentaje_yenny
-                    if total_porcentaje > 0:
-                        porcentaje_marcelo = (porcentaje_marcelo / total_porcentaje) * 100
-                        porcentaje_yenny = (porcentaje_yenny / total_porcentaje) * 100
-                    
-                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes * (porcentaje_marcelo / 100)
-                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes * (porcentaje_yenny / 100)
-                else:
-                    # Distribución 50/50 por defecto
-                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes * 0.5
-                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes * 0.5
-            elif persona == "Marcelo":
-                meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes
-            elif persona == "Yenny":
-                meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes
-            
-            meses_pagos[mes_clave]["total"] += monto_mes
-    
-    # También mostrar un resumen por tarjeta y persona
-    if meses_pagos:
-        # Crear DataFrame para la tabla horizontal
-        data = []
-        for mes_clave in sorted(meses_pagos.keys()):
-            mes_info = meses_pagos[mes_clave]
-            row = {
-                "Mes/Año": f"{mes_info['mes_nombre'][:3]} '{str(mes_info['año'])[2:]}",
-                "BROU": f"${float_a_monto_uy(mes_info['tarjetas']['BROU'])}",
-                "Santander": f"${float_a_monto_uy(mes_info['tarjetas']['Santander'])}",
-                "OCA": f"${float_a_monto_uy(mes_info['tarjetas']['OCA'])}",
-                "Otra": f"${float_a_monto_uy(mes_info['tarjetas']['Otra'])}",
-                "Efectivo": f"${float_a_monto_uy(mes_info['tarjetas']['Efectivo'])}",
-                "Transferencia": f"${float_a_monto_uy(mes_info['tarjetas']['Transferencia'])}",
-                "Marcelo": f"${float_a_monto_uy(mes_info['personas']['Marcelo'])}",
-                "Yenny": f"${float_a_monto_uy(mes_info['personas']['Yenny'])}",
-                "Total": f"${float_a_monto_uy(mes_info['total'])}"
-            }
-            data.append(row)
+        if filtro_tarjeta != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Tarjeta"] == filtro_tarjeta]
         
-        df_pagos = pd.DataFrame(data)
+        if filtro_mes != "Todos":
+            mes_str, año_str = filtro_mes.split("/")
+            mes = list(MESES_NUMERO.keys())[list(MESES_NUMERO.values()).index(mes_str)]
+            año = int(año_str)
+            df_filtrado = df_filtrado[
+                (df_filtrado["Fecha"].dt.year == año) &
+                (df_filtrado["Fecha"].dt.month == mes)
+            ]
         
-        # Calcular totales por columna
-        if not df_pagos.empty:
-            # Crear una fila de totales
-            total_row = {
-                "Mes/Año": "TOTAL",
-                "BROU": f"${float_a_monto_uy(df_pagos['BROU'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Santander": f"${float_a_monto_uy(df_pagos['Santander'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "OCA": f"${float_a_monto_uy(df_pagos['OCA'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Otra": f"${float_a_monto_uy(df_pagos['Otra'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Efectivo": f"${float_a_monto_uy(df_pagos['Efectivo'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Transferencia": f"${float_a_monto_uy(df_pagos['Transferencia'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Marcelo": f"${float_a_monto_uy(df_pagos['Marcelo'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Yenny": f"${float_a_monto_uy(df_pagos['Yenny'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
-                "Total": f"${float_a_monto_uy(df_pagos['Total'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}"
-            }
+        if filtro_categoria != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
+        
+        # Mostrar tabla
+        if not df_filtrado.empty:
+            # Formatear datos para display
+            df_display = df_filtrado.copy()
+            df_display["Fecha"] = df_display["Fecha"].apply(fecha_obj_a_uy)
+            df_display["Monto"] = df_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
+            df_display["Cuotas"] = df_display.apply(lambda row: f"{int(row['CuotasPagadas'])}/{int(row['CuotasTotales'])}", axis=1)
             
-            # Agregar la fila de totales al DataFrame
-            df_pagos_con_totales = pd.concat([df_pagos, pd.DataFrame([total_row])], ignore_index=True)
+            st.dataframe(df_display[["id", "Fecha", "Descripcion", "Categoria", "Persona", "Tarjeta", "Monto", "Cuotas"]], use_container_width=True)
             
-            # Mostrar la tabla con totales
-            st.dataframe(df_pagos_con_totales, use_container_width=True)
-            
-            # Mostrar resumen
-            st.subheader("📊 Resumen General de Pagos Futuros")
+            # Acciones
+            st.subheader("⚙️ Acciones")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Total Marcelo", f"${float_a_monto_uy(monto_uy_a_float(total_row['Marcelo'].replace('$', '')))}")
+                if st.button("✏️ Editar Seleccionado", use_container_width=True):
+                    st.info("Funcionalidad de edición próximamente")
             with col2:
-                st.metric("Total Yenny", f"${float_a_monto_uy(monto_uy_a_float(total_row['Yenny'].replace('$', '')))}")
+                if st.button("🗑 Eliminar Seleccionado", use_container_width=True):
+                    st.info("Funcionalidad de eliminación próximamente")
             with col3:
-                st.metric("Total General", f"${float_a_monto_uy(monto_uy_a_float(total_row['Total'].replace('$', '')))}")
-    else:
-        st.info("✓ No hay pagos futuros pendientes")
-    
-    # Gastos con cuotas pendientes (adicional)
-    st.subheader("📋 Gastos con Cuotas Pendientes")
-    gastos_pendientes = st.session_state.df_gastos[
-        st.session_state.df_gastos["CuotasPagadas"] < st.session_state.df_gastos["CuotasTotales"]
-    ]
-    
-    if not gastos_pendientes.empty:
-        st.write("**Gastos normales con cuotas pendientes:**")
-        for _, gasto in gastos_pendientes.iterrows():
-            cuotas_restantes = int(gasto["CuotasTotales"]) - int(gasto["CuotasPagadas"])
-            monto_por_cuota = float(gasto["Monto"]) / int(gasto["CuotasTotales"])
-            st.write(f"• **{gasto['Descripcion']}** - {cuotas_restantes} cuota(s) pendiente(s) - ${float_a_monto_uy(monto_por_cuota)} por cuota")
-    else:
-        st.info("No hay gastos normales con cuotas pendientes")
-    
-    # Gastos fijos pendientes
-    st.subheader("💳 Gastos Fijos Pendientes")
-    hoy = datetime.today()
-    mes_actual_str = hoy.strftime("%Y-%m")
-    
-    fijos_pendientes = []
-    for _, fijo in st.session_state.df_fijos.iterrows():
-        if not fijo["Activo"]:
-            continue
+                if st.button("📄 Exportar PDF", use_container_width=True):
+                    pdf = generar_reporte_pdf(df_filtrado, pd.DataFrame(), {"Persona": filtro_persona, "Tarjeta": filtro_tarjeta, "Mes": filtro_mes, "Categoría": filtro_categoria})
+                    pdf_output = pdf.output(dest='S').encode('latin-1')
+                    st.download_button("Descargar PDF", pdf_output, "reporte_gastos.pdf", "application/pdf")
+            
+            # Resumen
+            total_gastos = df_filtrado["Monto"].sum()
+            st.metric("Total de gastos filtrados", f"${float_a_monto_uy(total_gastos)}")
+        else:
+            st.info("No hay gastos que coincidan con los filtros aplicados")
+
+    with tab_fijos:
+        st.header("💳 Lista de Gastos Fijos")
         
-        fecha_inicio = pd.to_datetime(fijo["FechaInicio"], dayfirst=True, errors="coerce")
-        if pd.isna(fecha_inicio):
-            continue
+        # Mostrar tabla
+        if not st.session_state.df_fijos.empty:
+            df_fijos_display = st.session_state.df_fijos.copy()
+            df_fijos_display["Monto"] = df_fijos_display["Monto"].apply(lambda x: f"${float_a_monto_uy(x)}")
+            df_fijos_display["Estado"] = df_fijos_display["Activo"].apply(lambda x: "✅ Activo" if x else "❌ Inactivo")
+            df_fijos_display = df_fijos_display.rename(columns={"CuentaDebito": "Cuenta", "FechaInicio": "Inicio", "FechaFin": "Fin"})
+            
+            st.dataframe(df_fijos_display[["id", "Descripcion", "Monto", "Categoria", "Persona", "Cuenta", "Inicio", "Fin", "Estado"]], use_container_width=True)
+            
+            # Resumen
+            total_fijos_activos = df_fijos_display[df_fijos_display["Estado"] == "✅ Activo"]["Monto"].apply(lambda x: monto_uy_a_float(x.replace("$", ""))).sum()
+            st.metric("Total gastos fijos activos", f"${float_a_monto_uy(total_fijos_activos)}")
+        else:
+            st.info("No hay gastos fijos registrados")
+
+    with tab_pagos:
+        st.header("⏰ Pagos Futuros")
         
-        fecha_fin = pd.to_datetime(fijo.get("FechaFin"), dayfirst=True, errors="coerce") if fijo.get("FechaFin") else None
+        # Marcar pagos del mes actual
+        if st.button("✅ Marcar pagos del mes actual", key="marcar_pagos"):
+            marcar_pagos_mes_actual()
+            st.session_state.df_gastos = cargar_datos()
+            st.session_state.df_fijos = cargar_gastos_fijos()
+            st.success("✓ Pagos del mes marcados")
+            st.rerun()
         
-        # Verificar si está pendiente para el mes actual
-        meses_pagados = str(fijo.get("MesesPagados", ""))
-        if mes_actual_str not in meses_pagados:
-            if fecha_inicio <= pd.Timestamp(hoy) and (fecha_fin is None or fecha_fin >= pd.Timestamp(hoy)):
-                fijos_pendientes.append(fijo)
-    
-    if fijos_pendientes:
-        st.write("**Gastos fijos pendientes para el mes actual:**")
-        for fijo in fijos_pendientes:
-            st.write(f"• **{fijo['Descripcion']}** - ${float_a_monto_uy(fijo['Monto'])} - {fijo['Persona']}")
-    else:
-        st.info("No hay gastos fijos pendientes para el mes actual")
+        st.subheader("📅 Resumen Mensual de Pagos Futuros")
+        
+        # Generar tabla horizontal como en el original
+        hoy = datetime.today()
+        mes_actual = pd.Timestamp(year=hoy.year, month=hoy.month, day=1)
+        meses_a_mostrar = 12  # Mostrar 12 meses
+        
+        # Obtener meses con pagos
+        meses_pagos = {}
+
+        # Procesar gastos normales con cuotas pendientes
+        for _, gasto in st.session_state.df_gastos.iterrows():
+            cuotas_totales = int(gasto["CuotasTotales"] or 1)
+            cuotas_pagadas = int(gasto["CuotasPagadas"] or 0)
+            
+            if cuotas_pagadas >= cuotas_totales:
+                continue
+
+            fecha_gasto = pd.to_datetime(gasto["Fecha"], dayfirst=True, errors="coerce")
+            if pd.isna(fecha_gasto):
+                continue
+
+            dia_gasto = fecha_gasto.day
+            if dia_gasto >= 5:
+                primer_mes_pago = fecha_gasto.replace(day=1) + pd.DateOffset(months=1)
+            else:
+                primer_mes_pago = fecha_gasto.replace(day=1)
+
+            # Calcular monto por cuota
+            monto_total = float(gasto["Monto"])
+            monto_por_cuota = monto_total / cuotas_totales if cuotas_totales > 0 else monto_total
+
+            for i in range(cuotas_pagadas, cuotas_totales):
+                mes_pago = primer_mes_pago + pd.DateOffset(months=i)
+                if mes_pago < mes_actual:
+                    continue
+                mes_clave = mes_pago.strftime("%Y-%m")
+
+                if mes_clave not in meses_pagos:
+                    meses_pagos[mes_clave] = {
+                        "mes_nombre": MESES_NUMERO[mes_pago.month],
+                        "año": mes_pago.year,
+                        "tarjetas": {"BROU": 0, "Santander": 0, "OCA": 0, "Otra": 0, "Efectivo": 0, "Transferencia": 0},
+                        "personas": {"Marcelo": 0, "Yenny": 0},
+                        "total": 0
+                    }
+
+                # Asignar a tarjeta
+                tarjeta = gasto.get("Tarjeta", "Otra")
+                if tarjeta in meses_pagos[mes_clave]["tarjetas"]:
+                    meses_pagos[mes_clave]["tarjetas"][tarjeta] += monto_por_cuota
+                else:
+                    # Si la tarjeta no está en la lista, agregarla a "Otra"
+                    meses_pagos[mes_clave]["tarjetas"]["Otra"] += monto_por_cuota
+
+                # Asignar a persona
+                persona = gasto.get("Persona", "Marcelo")
+                if persona == "Marcelo":
+                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_por_cuota
+                elif persona == "Yenny":
+                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_por_cuota
+
+                meses_pagos[mes_clave]["total"] += monto_por_cuota
+
+        # Procesar gastos fijos
+        for _, fijo in st.session_state.df_fijos.iterrows():
+            if not fijo["Activo"]:
+                continue
+            
+            fecha_inicio = pd.to_datetime(fijo["FechaInicio"], dayfirst=True, errors="coerce")
+            if pd.isna(fecha_inicio):
+                continue
+            
+            fecha_fin = pd.to_datetime(fijo.get("FechaFin"), dayfirst=True, errors="coerce") if fijo.get("FechaFin") else None
+            
+            for i in range(meses_a_mostrar):
+                mes_fecha = mes_actual + pd.DateOffset(months=i)
+                mes_clave = mes_fecha.strftime("%Y-%m")
+                
+                if fecha_inicio > mes_fecha:
+                    continue
+                if fecha_fin and fecha_fin < mes_fecha:
+                    continue
+                
+                # Verificar si ya pagado
+                meses_pagados = str(fijo.get("MesesPagados", ""))
+                if mes_clave in meses_pagados:
+                    continue
+                
+                # Obtener monto
+                monto_mes = float(fijo.get("Monto", 0))
+                if fijo.get("Variaciones") and isinstance(fijo["Variaciones"], dict) and mes_clave in fijo["Variaciones"]:
+                    try:
+                        monto_mes = float(fijo["Variaciones"][mes_clave])
+                    except:
+                        monto_mes = float(fijo.get("Monto", 0))
+                
+                if mes_clave not in meses_pagos:
+                    meses_pagos[mes_clave] = {
+                        "mes_nombre": MESES_NUMERO[mes_fecha.month],
+                        "año": mes_fecha.year,
+                        "tarjetas": {"BROU": 0, "Santander": 0, "OCA": 0, "Otra": 0, "Efectivo": 0, "Transferencia": 0},
+                        "personas": {"Marcelo": 0, "Yenny": 0},
+                        "total": 0
+                    }
+                
+                # Asignar a tarjeta
+                tarjeta = fijo.get("CuentaDebito", "Otra")
+                if tarjeta in meses_pagos[mes_clave]["tarjetas"]:
+                    meses_pagos[mes_clave]["tarjetas"][tarjeta] += monto_mes
+                else:
+                    meses_pagos[mes_clave]["tarjetas"]["Otra"] += monto_mes
+                
+                # Asignar a persona según distribución
+                persona = fijo.get("Persona", "Marcelo")
+                if persona == "Ambos":
+                    distribucion = fijo.get("Distribucion", {"Marcelo": 50, "Yenny": 50})
+                    if isinstance(distribucion, dict):
+                        porcentaje_marcelo = float(distribucion.get("Marcelo", 50))
+                        porcentaje_yenny = float(distribucion.get("Yenny", 50))
+                        
+                        total_porcentaje = porcentaje_marcelo + porcentaje_yenny
+                        if total_porcentaje > 0:
+                            porcentaje_marcelo = (porcentaje_marcelo / total_porcentaje) * 100
+                            porcentaje_yenny = (porcentaje_yenny / total_porcentaje) * 100
+                        
+                        meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes * (porcentaje_marcelo / 100)
+                        meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes * (porcentaje_yenny / 100)
+                    else:
+                        meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes * 0.5
+                        meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes * 0.5
+                elif persona == "Marcelo":
+                    meses_pagos[mes_clave]["personas"]["Marcelo"] += monto_mes
+                elif persona == "Yenny":
+                    meses_pagos[mes_clave]["personas"]["Yenny"] += monto_mes
+                
+                meses_pagos[mes_clave]["total"] += monto_mes
+        
+        if meses_pagos:
+            # Crear DataFrame para la tabla
+            data = []
+            for mes_clave in sorted(meses_pagos.keys()):
+                mes_info = meses_pagos[mes_clave]
+                row = {
+                    "Mes/Año": f"{mes_info['mes_nombre'][:3]} '{str(mes_info['año'])[2:]}",
+                    "BROU": f"${float_a_monto_uy(mes_info['tarjetas']['BROU'])}",
+                    "Santander": f"${float_a_monto_uy(mes_info['tarjetas']['Santander'])}",
+                    "OCA": f"${float_a_monto_uy(mes_info['tarjetas']['OCA'])}",
+                    "Otra": f"${float_a_monto_uy(mes_info['tarjetas']['Otra'])}",
+                    "Efectivo": f"${float_a_monto_uy(mes_info['tarjetas']['Efectivo'])}",
+                    "Transferencia": f"${float_a_monto_uy(mes_info['tarjetas']['Transferencia'])}",
+                    "Marcelo": f"${float_a_monto_uy(mes_info['personas']['Marcelo'])}",
+                    "Yenny": f"${float_a_monto_uy(mes_info['personas']['Yenny'])}",
+                    "Total": f"${float_a_monto_uy(mes_info['total'])}"
+                }
+                data.append(row)
+            
+            df_pagos = pd.DataFrame(data)
+            
+            # Calcular totales por columna
+            if not df_pagos.empty:
+                # Crear una fila de totales
+                total_row = {
+                    "Mes/Año": "TOTAL",
+                    "BROU": f"${float_a_monto_uy(df_pagos['BROU'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Santander": f"${float_a_monto_uy(df_pagos['Santander'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "OCA": f"${float_a_monto_uy(df_pagos['OCA'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Otra": f"${float_a_monto_uy(df_pagos['Otra'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Efectivo": f"${float_a_monto_uy(df_pagos['Efectivo'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Transferencia": f"${float_a_monto_uy(df_pagos['Transferencia'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Marcelo": f"${float_a_monto_uy(df_pagos['Marcelo'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Yenny": f"${float_a_monto_uy(df_pagos['Yenny'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}",
+                    "Total": f"${float_a_monto_uy(df_pagos['Total'].apply(lambda x: monto_uy_a_float(x.replace('$', ''))).sum())}"
+                }
+                
+                # Agregar la fila de totales al DataFrame
+                df_pagos_con_totales = pd.concat([df_pagos, pd.DataFrame([total_row])], ignore_index=True)
+                
+                # Mostrar la tabla con totales
+                st.dataframe(df_pagos_con_totales, use_container_width=True)
+                
+                # Mostrar resumen
+                st.subheader("📊 Resumen General de Pagos Futuros")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Marcelo", f"${float_a_monto_uy(monto_uy_a_float(total_row['Marcelo'].replace('$', '')))}")
+                with col2:
+                    st.metric("Total Yenny", f"${float_a_monto_uy(monto_uy_a_float(total_row['Yenny'].replace('$', '')))}")
+                with col3:
+                    st.metric("Total General", f"${float_a_monto_uy(monto_uy_a_float(total_row['Total'].replace('$', '')))}")
+        else:
+            st.info("✓ No hay pagos futuros pendientes")
 
 if __name__ == "__main__":
     main()
