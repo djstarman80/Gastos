@@ -51,7 +51,9 @@ def manejar_db():
         verificar_y_reparar_db()
         st.session_state.db_cargada = True
         st.rerun()
-    if not os.path.exists("finanzas.db"): verificar_y_reparar_db()
+    if os.path.exists("finanzas.db") and not st.session_state.db_cargada:
+        verificar_y_reparar_db()
+        st.session_state.db_cargada = True
 
 def float_a_uy(v):
     try: return f"{float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -79,6 +81,11 @@ def generar_pdf_pro(df, titulo):
 def main():
     inicializar_estado()
     manejar_db()
+
+    if not st.session_state.db_cargada:
+        st.title("Bienvenido a M&Y Finanzas Pro")
+        st.write("Por favor, carga o selecciona tu base de datos desde la barra lateral para continuar.")
+        return
 
     conn = sqlite3.connect("finanzas.db")
     df_g = pd.read_sql_query("SELECT * FROM gastos", conn)
